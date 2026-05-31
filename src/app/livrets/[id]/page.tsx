@@ -146,7 +146,7 @@ export default function LivretPage() {
             <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{joursEcoules} jours écoulés</p>
           </div>
           <div>
-            <p style={label}>Intérêts restants (jusqu'au 31 déc.)</p>
+            <p style={label}>Intérêts restants (jusqu&apos;au 31 déc.)</p>
             <p style={{ fontSize: 16, fontWeight: 500, color: 'var(--muted)', filter: privacy ? 'blur(6px)' : 'none' }}>{fmt(interetsRestants)}</p>
             <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{joursRestants} jours restants</p>
           </div>
