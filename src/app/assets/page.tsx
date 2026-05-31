@@ -309,7 +309,7 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
           <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required placeholder="Ex: MSCI World, Livret A…" style={inp} />
         </Field>
         <Field label="Catégorie">
-          <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as AssetCategory }))} style={inp}>
+          <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as any }))} style={inp}>
             {Object.entries(CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Field>
