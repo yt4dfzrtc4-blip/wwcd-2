@@ -260,7 +260,7 @@ function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; a
           <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required placeholder="Ex : PEA, Livret A, Crypto…" style={inp} />
         </Field>
         <Field label="Type">
-          <select value={form.type} onChange={e => setForm(f => ({ ...f, ))} style={inp}>
+          <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as any }))} style={inp}>
             {[['pea','PEA'],['cto','Compte-titres'],['crypto','Crypto'],['livret','Livret'],['per','PER'],['or','Or'],['obligations','Obligations'],['autre','Autre']].map(([k,v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Field>
