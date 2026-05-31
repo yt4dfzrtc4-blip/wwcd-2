@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Asset, Account, Bank } from '@/types'
+import type { Asset, Account, Bank, AssetCategory } from '@/types'
 import Topbar from '@/components/layout/Topbar'
 import { CATEGORY_LABELS } from '@/lib/portfolio'
 import { Plus, Pencil, Trash2, X, ChevronDown, ChevronRight } from 'lucide-react'
