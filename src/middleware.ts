@@ -9,16 +9,22 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name) { return request.cookies.get(name)?.value },
-        set(name, value, options) {
-          request.cookies.set({ name, value, ...options })
-          response = NextResponse.next({ request: { headers: request.headers } })
-          response.cookies.set({ name, value, ...options })
+        get(name: string) {
+          return request.cookies.get(name)?.value
         },
-        remove(name, options) {
-          request.cookies.set({ name, value: '', ...options })
+        set(name: string, value: string, options: Record<string, unknown>) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          request.cookies.set({ name, value, ...options } as any)
           response = NextResponse.next({ request: { headers: request.headers } })
-          response.cookies.set({ name, value: '', ...options })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          response.cookies.set({ name, value, ...options } as any)
+        },
+        remove(name: string, options: Record<string, unknown>) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          request.cookies.set({ name, value: '', ...options } as any)
+          response = NextResponse.next({ request: { headers: request.headers } })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          response.cookies.set({ name, value: '', ...options } as any)
         },
       },
     }
@@ -27,12 +33,10 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const path = request.nextUrl.pathname
 
-  // Redirige vers /dashboard si déjà connecté
   if (user && path === '/login') {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // Redirige vers /login si non connecté sur une page protégée
   if (!user && path.startsWith('/dashboard')) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
