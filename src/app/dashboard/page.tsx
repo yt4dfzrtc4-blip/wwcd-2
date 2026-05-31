@@ -17,6 +17,8 @@ export default function DashboardPage() {
   const router = useRouter()
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
+  const [byBank, setByBank] = useState<{ name: string; value: number }[]>([])
+  const [byAccount, setByAccount] = useState<{ name: string; bank: string; value: number }[]>([])
   const [privacy, setPrivacy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -24,15 +26,42 @@ export default function DashboardPage() {
 
   const loadData = useCallback(async () => {
     const [{ data: transactions }, { data: assets }, { data: accounts }, { data: snaps }] = await Promise.all([
-      supabase.from('transactions').select('*, asset:assets(*, prices(*)), account:accounts(*)'),
+      supabase.from('transactions').select('*, asset:assets(*, prices(*)), account:accounts(*, bank:banks(*))'),
       supabase.from('assets').select('*, prices(*)'),
-      supabase.from('accounts').select('*'),
+      supabase.from('accounts').select('*, bank:banks(*)'),
       supabase.from('snapshots').select('*').order('date', { ascending: true }).limit(365),
     ])
 
     if (transactions && assets && accounts) {
       const positions = buildPositions(transactions as any, assets as any, accounts as any)
-      setSummary(buildPortfolioSummary(positions))
+      const s = buildPortfolioSummary(positions)
+      setSummary(s)
+
+      // Répartition par compte
+      const accountMap: Record<string, { name: string; bank: string; value: number }> = {}
+      for (const pos of positions) {
+        const acc = pos.account as any
+        const key = acc.id
+        if (!accountMap[key]) {
+          accountMap[key] = {
+            name: acc.name,
+            bank: acc.bank?.name ?? '–',
+            value: 0,
+          }
+        }
+        accountMap[key].value += pos.current_value
+      }
+      const accountList = Object.values(accountMap).sort((a, b) => b.value - a.value)
+      setByAccount(accountList)
+
+      // Répartition par banque
+      const bankMap: Record<string, { name: string; value: number }> = {}
+      for (const acc of accountList) {
+        const key = acc.bank
+        if (!bankMap[key]) bankMap[key] = { name: key, value: 0 }
+        bankMap[key].value += acc.value
+      }
+      setByBank(Object.values(bankMap).sort((a, b) => b.value - a.value))
     }
     setSnapshots((snaps ?? []) as Snapshot[])
     setLoading(false)
@@ -46,6 +75,8 @@ export default function DashboardPage() {
     await loadData()
     setRefreshing(false)
   }
+
+  const totalValue = summary?.total_value ?? 0
 
   if (loading) return (
     <div style={{ minHeight: '100vh' }}>
@@ -66,64 +97,76 @@ export default function DashboardPage() {
 
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 10, marginBottom: 16 }}>
-          <KpiCard
-            label="Patrimoine total"
-            value={s ? formatEur(s.total_value, 0) : '–'}
-            sub={s ? `Capital : ${formatEur(s.total_invested, 0)}` : undefined}
-            hidden={privacy}
-          />
-          <KpiCard
-            label="Plus-value latente"
-            value={s ? formatEur(s.total_pnl, 0) : '–'}
-            sub={s ? formatPct(s.total_pnl_pct) : undefined}
-            subColor={s && s.total_pnl >= 0 ? 'gain' : 'loss'}
-            hidden={privacy}
-          />
-          <KpiCard
-            label="Performance globale"
-            value={s ? formatPct(s.total_pnl_pct) : '–'}
-            subColor={s && s.total_pnl_pct >= 0 ? 'gain' : 'loss'}
-            hidden={privacy}
-          />
-          <KpiCard
-            label="Variation du jour"
-            value={s ? formatEur(s.day_change, 0) : '–'}
-            sub={s ? formatPct(s.day_change_pct) : undefined}
-            subColor={s && s.day_change >= 0 ? 'gain' : 'loss'}
-            hidden={privacy}
-          />
+          <KpiCard label="Patrimoine total" value={s ? formatEur(s.total_value, 0) : '–'} sub={s ? `Capital : ${formatEur(s.total_invested, 0)}` : undefined} hidden={privacy} />
+          <KpiCard label="Plus-value latente" value={s ? formatEur(s.total_pnl, 0) : '–'} sub={s ? formatPct(s.total_pnl_pct) : undefined} subColor={s && s.total_pnl >= 0 ? 'gain' : 'loss'} hidden={privacy} />
+          <KpiCard label="Performance globale" value={s ? formatPct(s.total_pnl_pct) : '–'} subColor={s && s.total_pnl_pct >= 0 ? 'gain' : 'loss'} hidden={privacy} />
+          <KpiCard label="Variation du jour" value={s ? formatEur(s.day_change, 0) : '–'} sub={s ? formatPct(s.day_change_pct) : undefined} subColor={s && s.day_change >= 0 ? 'gain' : 'loss'} hidden={privacy} />
         </div>
 
         {/* Graphiques */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
-            <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
-              Évolution 12 mois
-            </p>
+            <p style={sectionLabel}>Évolution 12 mois</p>
             <EvolutionChart snapshots={snapshots} hidden={privacy} />
           </div>
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
-            <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
-              Répartition par catégorie
-            </p>
+            <p style={sectionLabel}>Répartition par catégorie</p>
             <DonutChart data={s?.by_category ?? {}} hidden={privacy} />
           </div>
         </div>
 
+        {/* Répartition par banque */}
+        {byBank.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
+              <p style={sectionLabel}>Par banque</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                {byBank.map(b => (
+                  <div key={b.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 13, flex: 1, color: 'var(--text)' }}>{b.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 500, filter: privacy ? 'blur(6px)' : 'none' }}>{formatEur(b.value, 0)}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', minWidth: 36, textAlign: 'right' }}>
+                      {totalValue > 0 ? `${((b.value / totalValue) * 100).toFixed(0)} %` : '–'}
+                    </span>
+                    <div style={{ width: 80, height: 4, background: 'var(--bg)', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ width: `${totalValue > 0 ? (b.value / totalValue) * 100 : 0}%`, height: '100%', background: 'var(--brand)', borderRadius: 2 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
+              <p style={sectionLabel}>Par compte</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                {byAccount.map(a => (
+                  <div key={a.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text)' }}>{a.name}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>{a.bank}</span>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 500, filter: privacy ? 'blur(6px)' : 'none' }}>{formatEur(a.value, 0)}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', minWidth: 36, textAlign: 'right' }}>
+                      {totalValue > 0 ? `${((a.value / totalValue) * 100).toFixed(0)} %` : '–'}
+                    </span>
+                    <div style={{ width: 80, height: 4, background: 'var(--bg)', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ width: `${totalValue > 0 ? (a.value / totalValue) * 100 : 0}%`, height: '100%', background: '#1D9E75', borderRadius: 2 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Positions */}
         <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Positions ouvertes ({s?.positions.length ?? 0})
-            </p>
+            <p style={sectionLabel}>Positions ouvertes ({s?.positions.length ?? 0})</p>
             <span style={{ fontSize: 11, color: 'var(--muted)' }}>Triées par valorisation</span>
           </div>
 
-          {/* En-tête */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 100px 110px 70px 20px',
-            gap: 8, padding: '4px 10px', fontSize: 11, color: 'var(--muted)',
-          }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 110px 70px 20px', gap: 8, padding: '4px 10px', fontSize: 11, color: 'var(--muted)' }}>
             <span>Actif</span>
             <span style={{ textAlign: 'right' }}>Valeur</span>
             <span style={{ textAlign: 'right' }}>+/- latent</span>
@@ -143,39 +186,21 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* Bouton + */}
-      <button
-        onClick={() => setShowModal(true)}
-        style={{
-          position: 'fixed', bottom: 24, right: 24,
-          width: 48, height: 48, borderRadius: '50%',
-          background: 'var(--brand)', border: 'none',
-          color: '#fff', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-        title="Ajouter une transaction"
-      >
+      <button onClick={() => setShowModal(true)} style={{ position: 'fixed', bottom: 24, right: 24, width: 48, height: 48, borderRadius: '50%', background: 'var(--brand)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Ajouter une transaction">
         <Plus size={22} />
       </button>
 
-      {showModal && (
-        <TransactionModal onClose={() => setShowModal(false)} onSuccess={loadData} />
-      )}
+      {showModal && <TransactionModal onClose={() => setShowModal(false)} onSuccess={loadData} />}
     </div>
   )
 }
 
+const sectionLabel: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }
+
 function PositionRow({ pos, hidden, onClick }: { pos: Position; hidden: boolean; onClick: () => void }) {
   const isGain = pos.pnl >= 0
   return (
-    <div
-      onClick={onClick}
-      style={{
-        display: 'grid', gridTemplateColumns: '1fr 100px 110px 70px 20px',
-        gap: 8, padding: '9px 10px', borderRadius: 7,
-        cursor: 'pointer', alignItems: 'center', fontSize: 13,
-        transition: 'background 0.1s',
-      }}
+    <div onClick={onClick} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 110px 70px 20px', gap: 8, padding: '9px 10px', borderRadius: 7, cursor: 'pointer', alignItems: 'center', fontSize: 13 }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
@@ -183,21 +208,13 @@ function PositionRow({ pos, hidden, onClick }: { pos: Position; hidden: boolean;
         <p style={{ fontWeight: 500, fontSize: 13 }}>{pos.asset.name}</p>
         <p style={{ fontSize: 11, color: 'var(--muted)' }}>{pos.account.name}</p>
       </div>
-      <p style={{ textAlign: 'right', fontWeight: 500, filter: hidden ? 'blur(6px)' : 'none' }}>
-        {formatEur(pos.current_value, 0)}
-      </p>
+      <p style={{ textAlign: 'right', fontWeight: 500, filter: hidden ? 'blur(6px)' : 'none' }}>{formatEur(pos.current_value, 0)}</p>
       <div style={{ textAlign: 'right', filter: hidden ? 'blur(6px)' : 'none' }}>
-        <p style={{ color: isGain ? 'var(--green)' : 'var(--red)', fontWeight: 500 }}>
-          {isGain ? '+' : ''}{formatEur(pos.pnl, 0)}
-        </p>
-        <p style={{ fontSize: 11, color: isGain ? 'var(--green)' : 'var(--red)' }}>
-          {formatPct(pos.pnl_pct)}
-        </p>
+        <p style={{ color: isGain ? 'var(--green)' : 'var(--red)', fontWeight: 500 }}>{isGain ? '+' : ''}{formatEur(pos.pnl, 0)}</p>
+        <p style={{ fontSize: 11, color: isGain ? 'var(--green)' : 'var(--red)' }}>{formatPct(pos.pnl_pct)}</p>
       </div>
       <div style={{ textAlign: 'right' }}>
-        <span className={`badge badge-${pos.asset.category}`}>
-          {CATEGORY_LABELS[pos.asset.category] ?? pos.asset.category}
-        </span>
+        <span className={`badge badge-${pos.asset.category}`}>{CATEGORY_LABELS[pos.asset.category] ?? pos.asset.category}</span>
       </div>
       <ChevronRight size={14} color="var(--muted)" />
     </div>
