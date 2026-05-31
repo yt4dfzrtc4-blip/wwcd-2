@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --brand: #534AB7;
+  --brand-light: #EEEDFE;
+  --brand-dark: #3C3489;
+  --green: #1D9E75;
+  --red: #E24B4A;
+  --bg: #F7F6F3;
+  --surface: #FFFFFF;
+  --border: rgba(0,0,0,0.08);
+  --text: #1a1a1a;
+  --muted: #6b6b6b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar fine */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 2px; }
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.25s ease forwards;
+}
+
+/* Badge catégories */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+.badge-etf        { background: #EEEDFE; color: #3C3489; }
+.badge-action     { background: #E6F1FB; color: #0C447C; }
+.badge-crypto     { background: #F3F0FF; color: #534AB7; }
+.badge-livret     { background: #E1F5EE; color: #085041; }
+.badge-or         { background: #FAEEDA; color: #633806; }
+.badge-obligation { background: #FAECE7; color: #712B13; }
+.badge-cat        { background: #FEF3DB; color: #633806; }
+.badge-per        { background: #E1F5EE; color: #085041; }
+.badge-autre      { background: #F1EFE8; color: #444441; }
+
+/* Couleurs PnL */
+.text-gain { color: var(--green); }
+.text-loss { color: var(--red); }
