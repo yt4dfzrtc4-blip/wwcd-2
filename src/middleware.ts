@@ -13,18 +13,14 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: Record<string, unknown>) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          request.cookies.set({ name, value, ...options } as any)
+          request.cookies.set({ name, value, ...options } as Parameters<typeof request.cookies.set>[0])
           response = NextResponse.next({ request: { headers: request.headers } })
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          response.cookies.set({ name, value, ...options } as any)
+          response.cookies.set({ name, value, ...options } as Parameters<typeof response.cookies.set>[0])
         },
         remove(name: string, options: Record<string, unknown>) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          request.cookies.set({ name, value: '', ...options } as any)
+          request.cookies.set({ name, value: '', ...options } as Parameters<typeof request.cookies.set>[0])
           response = NextResponse.next({ request: { headers: request.headers } })
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          response.cookies.set({ name, value: '', ...options } as any)
+          response.cookies.set({ name, value: '', ...options } as Parameters<typeof response.cookies.set>[0])
         },
       },
     }
@@ -36,11 +32,9 @@ export async function middleware(request: NextRequest) {
   if (user && path === '/login') {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
-
   if (!user && path.startsWith('/dashboard')) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
-
   if (!user && path === '/') {
     return NextResponse.redirect(new URL('/login', request.url))
   }
