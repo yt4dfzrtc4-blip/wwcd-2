@@ -1,381 +1,222 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Asset, Account, Bank } from '@/types'
+import { buildPositions, buildPortfolioSummary, formatEur, formatPct, CATEGORY_LABELS } from '@/lib/portfolio'
+import type { PortfolioSummary, Snapshot, Position } from '@/types'
 import Topbar from '@/components/layout/Topbar'
-import { CATEGORY_LABELS } from '@/lib/portfolio'
-import { Plus, Pencil, Trash2, X, ChevronDown, ChevronRight } from 'lucide-react'
+import KpiCard from '@/components/ui/KpiCard'
+import EvolutionChart from '@/components/charts/EvolutionChart'
+import DonutChart from '@/components/charts/DonutChart'
+import TransactionModal from '@/components/ui/TransactionModal'
+import { Plus, ChevronRight } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
-export default function AssetsPage() {
+export default function DashboardPage() {
   const supabase = createClient()
-  const [assets, setAssets] = useState<Asset[]>([])
-  const [accounts, setAccounts] = useState<Account[]>([])
-  const [banks, setBanks] = useState<Bank[]>([])
+  const router = useRouter()
+  const [summary, setSummary] = useState<PortfolioSummary | null>(null)
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([])
+  const [byBank, setByBank] = useState<{ name: string; value: number }[]>([])
+  const [byAccount, setByAccount] = useState<{ name: string; bank: string; value: number }[]>([])
   const [privacy, setPrivacy] = useState(false)
-  const [showAssetModal, setShowAssetModal] = useState(false)
-  const [showAccountModal, setShowAccountModal] = useState(false)
-  const [showBankModal, setShowBankModal] = useState(false)
-  const [editAsset, setEditAsset] = useState<Asset | null>(null)
-  const [expandedBanks, setExpandedBanks] = useState<Record<string, boolean>>({})
+  const [refreshing, setRefreshing] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  async function loadData() {
-    const [{ data: ast }, { data: acc }, { data: bnk }] = await Promise.all([
-      supabase.from('assets').select('*, prices(*)').order('name'),
-      supabase.from('accounts').select('*, bank:banks(*)').order('name'),
-      supabase.from('banks').select('*').order('name'),
+  const loadData = useCallback(async () => {
+    const [{ data: transactions }, { data: assets }, { data: accounts }, { data: snaps }] = await Promise.all([
+      supabase.from('transactions').select('*, asset:assets(*, prices(*)), account:accounts(*, bank:banks(*))'),
+      supabase.from('assets').select('*, prices(*)'),
+      supabase.from('accounts').select('*, bank:banks(*)'),
+      supabase.from('snapshots').select('*').order('date', { ascending: true }).limit(365),
     ])
-    setAssets((ast ?? []) as Asset[])
-    setAccounts((acc ?? []) as Account[])
-    setBanks((bnk ?? []) as Bank[])
-    const expanded: Record<string, boolean> = {}
-    ;(bnk ?? []).forEach((b: Bank) => { expanded[b.id] = true })
-    expanded['none'] = true
-    setExpandedBanks(expanded)
+
+    if (transactions && assets && accounts) {
+      const positions = buildPositions(transactions as any, assets as any, accounts as any)
+      const s = buildPortfolioSummary(positions)
+      setSummary(s)
+
+      // Répartition par compte
+      const accountMap: Record<string, { name: string; bank: string; value: number }> = {}
+      for (const pos of positions) {
+        const acc = pos.account as any
+        const key = acc.id
+        if (!accountMap[key]) {
+          accountMap[key] = {
+            name: acc.name,
+            bank: acc.bank?.name ?? '–',
+            value: 0,
+          }
+        }
+        accountMap[key].value += pos.current_value
+      }
+      const accountList = Object.values(accountMap).sort((a, b) => b.value - a.value)
+      setByAccount(accountList)
+
+      // Répartition par banque
+      const bankMap: Record<string, { name: string; value: number }> = {}
+      for (const acc of accountList) {
+        const key = acc.bank
+        if (!bankMap[key]) bankMap[key] = { name: key, value: 0 }
+        bankMap[key].value += acc.value
+      }
+      setByBank(Object.values(bankMap).sort((a, b) => b.value - a.value))
+    }
+    setSnapshots((snaps ?? []) as Snapshot[])
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    await fetch('/api/prices/refresh', { method: 'POST' })
+    await loadData()
+    setRefreshing(false)
   }
 
-  useEffect(() => { loadData() }, [])
+  const totalValue = summary?.total_value ?? 0
 
-  async function deleteAsset(id: string) {
-    if (!confirm('Supprimer cet actif et toutes ses transactions ?')) return
-    await supabase.from('assets').delete().eq('id', id)
-    loadData()
-  }
+  if (loading) return (
+    <div style={{ minHeight: '100vh' }}>
+      <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={handleRefresh} refreshing={refreshing} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'var(--muted)', fontSize: 14 }}>
+        Chargement…
+      </div>
+    </div>
+  )
 
-  async function deleteAccount(id: string) {
-    if (!confirm('Supprimer ce compte ?')) return
-    await supabase.from('accounts').delete().eq('id', id)
-    loadData()
-  }
-
-  async function deleteBank(id: string) {
-    if (!confirm('Supprimer cette banque et dissocier ses comptes ?')) return
-    await supabase.from('banks').delete().eq('id', id)
-    loadData()
-  }
-
-  const accountsByBank = (bankId: string | null) =>
-    accounts.filter(a => bankId ? (a as any).bank_id === bankId : !(a as any).bank_id)
+  const s = summary
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={async () => {}} />
+      <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={handleRefresh} refreshing={refreshing} />
 
-      <main style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <main style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 16px' }}>
 
-        {/* BANQUES & COMPTES */}
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h1 style={{ fontSize: 18, fontWeight: 500 }}>Banques & Comptes</h1>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowBankModal(true)} style={{ ...btnStyle, background: 'var(--surface)', color: 'var(--text)', border: '0.5px solid var(--border)' }}>
-                <Plus size={14} /> Nouvelle banque
-              </button>
-              <button onClick={() => setShowAccountModal(true)} style={btnStyle}>
-                <Plus size={14} /> Nouveau compte
-              </button>
-            </div>
+        {/* KPIs */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 10, marginBottom: 16 }}>
+          <KpiCard label="Patrimoine total" value={s ? formatEur(s.total_value, 0) : '–'} sub={s ? `Capital : ${formatEur(s.total_invested, 0)}` : undefined} hidden={privacy} />
+          <KpiCard label="Plus-value latente" value={s ? formatEur(s.total_pnl, 0) : '–'} sub={s ? formatPct(s.total_pnl_pct) : undefined} subColor={s && s.total_pnl >= 0 ? 'gain' : 'loss'} hidden={privacy} />
+          <KpiCard label="Performance globale" value={s ? formatPct(s.total_pnl_pct) : '–'} subColor={s && s.total_pnl_pct >= 0 ? 'gain' : 'loss'} hidden={privacy} />
+          <KpiCard label="Variation du jour" value={s ? formatEur(s.day_change, 0) : '–'} sub={s ? formatPct(s.day_change_pct) : undefined} subColor={s && s.day_change >= 0 ? 'gain' : 'loss'} hidden={privacy} />
+        </div>
+
+        {/* Graphiques */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
+            <p style={sectionLabel}>Évolution 12 mois</p>
+            <EvolutionChart snapshots={snapshots} hidden={privacy} />
           </div>
+          <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
+            <p style={sectionLabel}>Répartition par catégorie</p>
+            <DonutChart data={s?.by_category ?? {}} hidden={privacy} />
+          </div>
+        </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {/* Comptes sans banque */}
-            {accountsByBank(null).length > 0 && (
-              <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ padding: '10px 16px', fontSize: 12, color: 'var(--muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '0.5px solid var(--border)', background: 'var(--bg)' }}>
-                  Sans banque
-                </div>
-                {accountsByBank(null).map(acc => (
-                  <AccountRow key={acc.id} acc={acc} onDelete={deleteAccount} />
-                ))}
-              </div>
-            )}
-
-            {/* Comptes par banque */}
-            {banks.map(bank => (
-              <div key={bank.id} style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-                <div
-                  style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', borderBottom: expandedBanks[bank.id] ? '0.5px solid var(--border)' : 'none', background: 'var(--bg)' }}
-                  onClick={() => setExpandedBanks(e => ({ ...e, [bank.id]: !e[bank.id] }))}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {expandedBanks[bank.id] ? <ChevronDown size={14} color="var(--muted)" /> : <ChevronRight size={14} color="var(--muted)" />}
-                    <span style={{ fontSize: 14, fontWeight: 500 }}>{bank.name}</span>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{accountsByBank(bank.id).length} compte{accountsByBank(bank.id).length > 1 ? 's' : ''}</span>
+        {/* Répartition par banque */}
+        {byBank.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
+              <p style={sectionLabel}>Par banque</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                {byBank.map(b => (
+                  <div key={b.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 13, flex: 1, color: 'var(--text)' }}>{b.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 500, filter: privacy ? 'blur(6px)' : 'none' }}>{formatEur(b.value, 0)}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', minWidth: 36, textAlign: 'right' }}>
+                      {totalValue > 0 ? `${((b.value / totalValue) * 100).toFixed(0)} %` : '–'}
+                    </span>
+                    <div style={{ width: 80, height: 4, background: 'var(--bg)', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ width: `${totalValue > 0 ? (b.value / totalValue) * 100 : 0}%`, height: '100%', background: 'var(--brand)', borderRadius: 2 }} />
+                    </div>
                   </div>
-                  <button onClick={e => { e.stopPropagation(); deleteBank(bank.id) }} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={13} /></button>
-                </div>
-                {expandedBanks[bank.id] && accountsByBank(bank.id).map(acc => (
-                  <AccountRow key={acc.id} acc={acc} onDelete={deleteAccount} />
                 ))}
-                {expandedBanks[bank.id] && accountsByBank(bank.id).length === 0 && (
-                  <div style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted)' }}>Aucun compte — ajoutez-en un</div>
-                )}
               </div>
-            ))}
-
-            {banks.length === 0 && accounts.length === 0 && (
-              <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>
-                Commencez par créer une banque, puis un compte
-              </p>
-            )}
-          </div>
-        </section>
-
-        {/* ACTIFS */}
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 500 }}>Actifs</h2>
-            <button onClick={() => { setEditAsset(null); setShowAssetModal(true) }} style={btnStyle}>
-              <Plus size={14} /> Nouvel actif
-            </button>
-          </div>
-
-          <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 110px 100px 50px', gap: 8, padding: '9px 16px', background: 'var(--bg)', borderBottom: '0.5px solid var(--border)', fontSize: 11, color: 'var(--muted)' }}>
-              <span>Nom</span><span>Catégorie</span><span>ISIN / Ticker</span><span style={{ textAlign: 'right' }}>Valeur / Solde</span><span />
             </div>
-            {!assets.length ? (
-              <p style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Aucun actif</p>
-            ) : assets.map(a => (
-              <div key={a.id}
-                style={{ display: 'grid', gridTemplateColumns: '1fr 90px 110px 100px 50px', gap: 8, padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: 13, alignItems: 'center' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <div>
-                  <span style={{ fontWeight: 500 }}>{a.name}</span>
-                  {a.livret_mode === 'balance' && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>solde simple</span>}
-                  {a.livret_mode === 'transactions' && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>avec transactions</span>}
-                </div>
-                <span className={`badge badge-${a.category}`}>{CATEGORY_LABELS[a.category]}</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted)' }}>{a.isin ?? a.ticker ?? '–'}</span>
-                <span style={{ textAlign: 'right', color: 'var(--muted)', filter: privacy ? 'blur(5px)' : 'none' }}>
-                  {a.livret_mode === 'balance'
-                    ? `${(a.livret_balance ?? 0).toLocaleString('fr-FR')} €`
-                    : (a as any).prices?.price ? `${(a as any).prices.price.toFixed(2)} €` : '–'
-                  }
-                </span>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button onClick={() => { setEditAsset(a); setShowAssetModal(true) }} style={iconBtn}><Pencil size={13} /></button>
-                  <button onClick={() => deleteAsset(a.id)} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={13} /></button>
-                </div>
+
+            <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
+              <p style={sectionLabel}>Par compte</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                {byAccount.map(a => (
+                  <div key={a.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text)' }}>{a.name}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>{a.bank}</span>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 500, filter: privacy ? 'blur(6px)' : 'none' }}>{formatEur(a.value, 0)}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', minWidth: 36, textAlign: 'right' }}>
+                      {totalValue > 0 ? `${((a.value / totalValue) * 100).toFixed(0)} %` : '–'}
+                    </span>
+                    <div style={{ width: 80, height: 4, background: 'var(--bg)', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ width: `${totalValue > 0 ? (a.value / totalValue) * 100 : 0}%`, height: '100%', background: '#1D9E75', borderRadius: 2 }} />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-        </section>
+        )}
+
+        {/* Positions */}
+        <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <p style={sectionLabel}>Positions ouvertes ({s?.positions.length ?? 0})</p>
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>Triées par valorisation</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 110px 70px 20px', gap: 8, padding: '4px 10px', fontSize: 11, color: 'var(--muted)' }}>
+            <span>Actif</span>
+            <span style={{ textAlign: 'right' }}>Valeur</span>
+            <span style={{ textAlign: 'right' }}>+/- latent</span>
+            <span style={{ textAlign: 'right' }}>Catégorie</span>
+            <span />
+          </div>
+
+          {!s?.positions.length ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--muted)', fontSize: 13 }}>
+              Aucune position — ajoutez votre première transaction
+            </div>
+          ) : (
+            s.positions.map(pos => (
+              <PositionRow key={`${pos.asset.id}-${pos.account.id}`} pos={pos} hidden={privacy} onClick={() => router.push(`/assets/${pos.asset.id}`)} />
+            ))
+          )}
+        </div>
       </main>
 
-      {showAssetModal && <AssetModal asset={editAsset} onClose={() => { setShowAssetModal(false); setEditAsset(null) }} onSuccess={loadData} />}
-      {showAccountModal && <AccountModal banks={banks} onClose={() => setShowAccountModal(false)} onSuccess={loadData} />}
-      {showBankModal && <BankModal onClose={() => setShowBankModal(false)} onSuccess={loadData} />}
+      <button onClick={() => setShowModal(true)} style={{ position: 'fixed', bottom: 24, right: 24, width: 48, height: 48, borderRadius: '50%', background: 'var(--brand)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Ajouter une transaction">
+        <Plus size={22} />
+      </button>
+
+      {showModal && <TransactionModal onClose={() => setShowModal(false)} onSuccess={loadData} />}
     </div>
   )
 }
 
-function AccountRow({ acc, onDelete }: { acc: Account; onDelete: (id: string) => void }) {
+const sectionLabel: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }
+
+function PositionRow({ pos, hidden, onClick }: { pos: Position; hidden: boolean; onClick: () => void }) {
+  const isGain = pos.pnl >= 0
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: 13 }}
+    <div onClick={onClick} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 110px 70px 20px', gap: 8, padding: '9px 10px', borderRadius: 7, cursor: 'pointer', alignItems: 'center', fontSize: 13 }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
-      <div style={{ paddingLeft: 22 }}>
-        <p style={{ fontWeight: 500 }}>{acc.name}</p>
-        <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{acc.type.toUpperCase()}</p>
+      <div>
+        <p style={{ fontWeight: 500, fontSize: 13 }}>{pos.asset.name}</p>
+        <p style={{ fontSize: 11, color: 'var(--muted)' }}>{pos.account.name}</p>
       </div>
-      <button onClick={() => onDelete(acc.id)} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={13} /></button>
-    </div>
-  )
-}
-
-function BankModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const supabase = createClient()
-  const [name, setName] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    await supabase.from('banks').insert({ name, user_id: user.id })
-    onSuccess(); onClose()
-  }
-
-  return (
-    <ModalWrap title="Nouvelle banque" onClose={onClose}>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Field label="Nom de la banque">
-          <input value={name} onChange={e => setName(e.target.value)} required placeholder="Ex : Boursorama, CIC, Coinbase…" style={inp} />
-        </Field>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
-          <button type="button" onClick={onClose} style={cancelBtn}>Annuler</button>
-          <button type="submit" disabled={loading} style={submitBtn}>{loading ? '…' : 'Créer'}</button>
-        </div>
-      </form>
-    </ModalWrap>
-  )
-}
-
-function AccountModal({ banks, onClose, onSuccess }: { banks: Bank[]; onClose: () => void; onSuccess: () => void }) {
-  const supabase = createClient()
-  const [form, setForm] = useState({ name: '', type: 'pea', bank_id: '' })
-  const [loading, setLoading] = useState(false)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    await supabase.from('accounts').insert({
-      name: form.name,
-      type: form.type,
-      user_id: user.id,
-      bank_id: form.bank_id || null,
-    })
-    onSuccess(); onClose()
-  }
-
-  return (
-    <ModalWrap title="Nouveau compte" onClose={onClose}>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Field label="Banque (optionnel)">
-          <select value={form.bank_id} onChange={e => setForm(f => ({ ...f, bank_id: e.target.value }))} style={inp}>
-            <option value="">Sans banque</option>
-            {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Nom du compte">
-          <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required placeholder="Ex : PEA, Livret A, Crypto…" style={inp} />
-        </Field>
-        <Field label="Type">
-          <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} style={inp}>
-            {[['pea','PEA'],['cto','Compte-titres'],['crypto','Crypto'],['livret','Livret'],['per','PER'],['or','Or'],['obligations','Obligations'],['autre','Autre']].map(([k,v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-        </Field>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
-          <button type="button" onClick={onClose} style={cancelBtn}>Annuler</button>
-          <button type="submit" disabled={loading} style={submitBtn}>{loading ? '…' : 'Créer'}</button>
-        </div>
-      </form>
-    </ModalWrap>
-  )
-}
-
-function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClose: () => void; onSuccess: () => void }) {
-  const supabase = createClient()
-  const isLivret = ['livret', 'cat', 'per'].includes(asset?.category ?? '')
-  const [form, setForm] = useState({
-    name: asset?.name ?? '',
-    category: asset?.category ?? 'etf',
-    isin: asset?.isin ?? '',
-    ticker: asset?.ticker ?? '',
-    currency: asset?.currency ?? 'EUR',
-    livret_mode: asset?.livret_mode ?? 'auto',
-    livret_balance: asset?.livret_balance?.toString() ?? '0',
-    livret_rate: asset?.livret_rate?.toString() ?? '0',
-  })
-  const [loading, setLoading] = useState(false)
-
-  const showLivretOptions = ['livret', 'cat', 'per', 'or'].includes(form.category)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const payload = {
-      name: form.name,
-      category: form.category,
-      isin: form.isin || null,
-      ticker: form.ticker || null,
-      currency: form.currency,
-      user_id: user.id,
-      livret_mode: showLivretOptions ? form.livret_mode : 'auto',
-      livret_balance: showLivretOptions && form.livret_mode === 'balance' ? parseFloat(form.livret_balance) : null,
-      livret_rate: showLivretOptions ? parseFloat(form.livret_rate) : null,
-    }
-    if (asset?.id) {
-      await supabase.from('assets').update(payload).eq('id', asset.id)
-    } else {
-      await supabase.from('assets').insert(payload)
-    }
-    onSuccess(); onClose()
-  }
-
-  return (
-    <ModalWrap title={asset ? "Modifier l'actif" : 'Nouvel actif'} onClose={onClose}>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Field label="Nom">
-          <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required placeholder="Ex: MSCI World, Livret A…" style={inp} />
-        </Field>
-        <Field label="Catégorie">
-          <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as any }))} style={inp}>
-            {Object.entries(CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-        </Field>
-
-        {showLivretOptions && (
-          <Field label="Mode de gestion">
-            <select value={form.livret_mode} onChange={e => setForm(f => ({ ...f, livret_mode: e.target.value as any }))} style={inp}>
-              <option value="balance">Solde simple (sans transactions)</option>
-              <option value="transactions">Avec historique de transactions</option>
-              <option value="auto">Cours automatique (ETF/actions)</option>
-            </select>
-          </Field>
-        )}
-
-        {showLivretOptions && form.livret_mode === 'balance' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <Field label="Solde actuel (€)">
-              <input type="number" step="0.01" value={form.livret_balance} onChange={e => setForm(f => ({ ...f, livret_balance: e.target.value }))} style={inp} />
-            </Field>
-            <Field label="Taux (%)">
-              <input type="number" step="0.01" value={form.livret_rate} onChange={e => setForm(f => ({ ...f, livret_rate: e.target.value }))} style={inp} />
-            </Field>
-          </div>
-        )}
-
-        {!showLivretOptions && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <Field label="ISIN (optionnel)"><input value={form.isin} onChange={e => setForm(f => ({ ...f, isin: e.target.value }))} placeholder="FR0011869353" style={inp} /></Field>
-            <Field label="Ticker (optionnel)"><input value={form.ticker} onChange={e => setForm(f => ({ ...f, ticker: e.target.value }))} placeholder="CW8.PA" style={inp} /></Field>
-          </div>
-        )}
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
-          <button type="button" onClick={onClose} style={cancelBtn}>Annuler</button>
-          <button type="submit" disabled={loading} style={submitBtn}>{loading ? '…' : asset ? 'Modifier' : 'Créer'}</button>
-        </div>
-      </form>
-    </ModalWrap>
-  )
-}
-
-function ModalWrap({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
-      <div className="fade-in" style={{ background: 'var(--surface)', borderRadius: 14, padding: '24px', width: '100%', maxWidth: 440, border: '0.5px solid var(--border)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 500 }}>{title}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={16} /></button>
-        </div>
-        {children}
+      <p style={{ textAlign: 'right', fontWeight: 500, filter: hidden ? 'blur(6px)' : 'none' }}>{formatEur(pos.current_value, 0)}</p>
+      <div style={{ textAlign: 'right', filter: hidden ? 'blur(6px)' : 'none' }}>
+        <p style={{ color: isGain ? 'var(--green)' : 'var(--red)', fontWeight: 500 }}>{isGain ? '+' : ''}{formatEur(pos.pnl, 0)}</p>
+        <p style={{ fontSize: 11, color: isGain ? 'var(--green)' : 'var(--red)' }}>{formatPct(pos.pnl_pct)}</p>
       </div>
+      <div style={{ textAlign: 'right' }}>
+        <span className={`badge badge-${pos.asset.category}`}>{CATEGORY_LABELS[pos.asset.category] ?? pos.asset.category}</span>
+      </div>
+      <ChevronRight size={14} color="var(--muted)" />
     </div>
   )
 }
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>{label}</label>
-      {children}
-    </div>
-  )
-}
-
-const inp: React.CSSProperties = { width: '100%', padding: '9px 11px', borderRadius: 7, border: '0.5px solid var(--border)', fontSize: 13, background: 'var(--bg)', color: 'var(--text)', outline: 'none', fontFamily: 'var(--font-sans)' }
-const btnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 5, padding: '7px 13px', borderRadius: 7, background: 'var(--brand)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font-sans)' }
-const iconBtn: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 2 }
-const cancelBtn: React.CSSProperties = { padding: '10px', borderRadius: 7, border: '0.5px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-sans)' }
-const submitBtn: React.CSSProperties = { padding: '10px', borderRadius: 7, border: 'none', background: 'var(--brand)', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font-sans)' }
