@@ -1,13 +1,23 @@
 export type AccountType = 'pea' | 'cto' | 'crypto' | 'livret' | 'per' | 'or' | 'obligations' | 'autre'
 export type AssetCategory = 'action' | 'etf' | 'crypto' | 'obligation' | 'livret' | 'cat' | 'per' | 'or' | 'autre'
 export type TransactionType = 'achat' | 'vente'
+export type LivretMode = 'auto' | 'balance' | 'transactions'
+
+export interface Bank {
+  id: string
+  user_id: string
+  name: string
+  created_at: string
+}
 
 export interface Account {
   id: string
   user_id: string
+  bank_id?: string
   name: string
   type: AccountType
   created_at: string
+  bank?: Bank
 }
 
 export interface Asset {
@@ -18,8 +28,10 @@ export interface Asset {
   name: string
   category: AssetCategory
   currency: string
+  livret_mode?: LivretMode
+  livret_balance?: number
+  livret_rate?: number
   created_at: string
-  // jointures
   prices?: Price
 }
 
@@ -34,7 +46,6 @@ export interface Transaction {
   date: string
   notes?: string
   created_at: string
-  // jointures
   asset?: Asset
   account?: Account
 }
@@ -56,26 +67,17 @@ export interface Snapshot {
   created_at: string
 }
 
-export interface LivretRate {
-  id: string
-  asset_id: string
-  rate: number
-  effective_date: string
-  created_at: string
-}
-
-// Positions calculées (non stockées en DB)
 export interface Position {
   asset: Asset
   account: Account
   quantity: number
-  average_price: number   // PRU
+  average_price: number
   current_price: number
   current_value: number
   invested_value: number
-  pnl: number             // plus-value latente €
-  pnl_pct: number         // plus-value latente %
-  day_change: number      // variation du jour €
+  pnl: number
+  pnl_pct: number
+  day_change: number
   day_change_pct: number
 }
 
