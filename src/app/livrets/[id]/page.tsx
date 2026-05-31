@@ -1,4 +1,3 @@
-mkdir -p /home/claude/wwcd/src/app/livrets/\[id\] && cat > "/home/claude/wwcd/src/app/livrets/[id]/page.tsx" << 'EOF'
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -272,5 +271,3 @@ const card: React.CSSProperties = { background: 'var(--surface)', border: '0.5px
 const label: React.CSSProperties = { fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }
 const inp: React.CSSProperties = { width: '100%', padding: '9px 11px', borderRadius: 7, border: '0.5px solid var(--border)', fontSize: 13, background: 'var(--bg)', color: 'var(--text)', outline: 'none', fontFamily: 'var(--font-sans)' }
 const fmt = (v: number) => v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
-EOF
-echo "OK"
