@@ -316,7 +316,7 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
 
         {showLivretOptions && (
           <Field label="Mode de gestion">
-            <select value={form.livret_mode} onChange={e => setForm(f => ({ ...f, livret_mode: e.target.value }))} style={inp}>
+            <select value={form.livret_mode} onChange={e => setForm(f => ({ ...f, livret_mode: e.target.value as any }))} style={inp}>
               <option value="balance">Solde simple (sans transactions)</option>
               <option value="transactions">Avec historique de transactions</option>
               <option value="auto">Cours automatique (ETF/actions)</option>
