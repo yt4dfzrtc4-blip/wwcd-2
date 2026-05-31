@@ -1,4 +1,3 @@
-cat > /home/claude/wwcd/src/app/assets/page.tsx << 'EOF'
 'use client'
 
 import { useState, useEffect } from 'react'
