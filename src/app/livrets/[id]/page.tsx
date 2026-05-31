@@ -4,17 +4,19 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Topbar from '@/components/layout/Topbar'
-import { ArrowLeft, Plus, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Trash2, X } from 'lucide-react'
 import { format, parseISO, startOfYear, differenceInDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
-interface Movement {
+interface Transaction {
   id: string
-  type: 'depot' | 'retrait' | 'interets'
-  amount: number
+  type: 'achat' | 'vente' | 'interets'
+  quantity: number
+  price: number
   date: string
-  note?: string
-  validated: boolean
+  notes?: string
+  asset_id: string
+  asset?: { id: string; name: string }
 }
 
 interface Account {
@@ -22,7 +24,6 @@ interface Account {
   name: string
   type: string
   livret_rate: number
-  livret_ceiling: number
 }
 
 export default function LivretPage() {
@@ -30,32 +31,36 @@ export default function LivretPage() {
   const router = useRouter()
   const supabase = createClient()
   const [account, setAccount] = useState<Account | null>(null)
-  const [movements, setMovements] = useState<Movement[]>([])
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [assets, setAssets] = useState<{ id: string; name: string }[]>([])
   const [privacy, setPrivacy] = useState(false)
   const [showModal, setShowModal] = useState(false)
-  const [modalType, setModalType] = useState<'depot' | 'retrait' | 'interets'>('depot')
+  const [modalType, setModalType] = useState<'achat' | 'vente' | 'interets'>('achat')
   const [editRate, setEditRate] = useState(false)
   const [newRate, setNewRate] = useState('')
 
   async function loadData() {
-    const [{ data: acc }, { data: mvts }] = await Promise.all([
+    const [{ data: acc }, { data: txs }, { data: ast }] = await Promise.all([
       supabase.from('accounts').select('*').eq('id', id).single(),
-      supabase.from('livret_movements').select('*').eq('account_id', id).order('date', { ascending: false }),
+      supabase.from('transactions').select('*, asset:assets(id, name)').eq('account_id', id).order('date', { ascending: false }),
+      supabase.from('assets').select('id, name').eq('category', 'livret'),
     ])
     setAccount(acc as Account)
-    setMovements((mvts ?? []) as Movement[])
+    setTransactions((txs ?? []) as Transaction[])
+    setAssets((ast ?? []) as { id: string; name: string }[])
     setNewRate(acc?.livret_rate?.toString() ?? '0')
   }
 
   useEffect(() => { loadData() }, [id])
 
-  // Calcul du solde actuel
-  const solde = movements.reduce((sum, m) => {
-    if (m.type === 'depot' || m.type === 'interets') return sum + m.amount
-    return sum - m.amount
+  // Solde = somme des dépôts et intérêts - retraits
+  const solde = transactions.reduce((sum, tx) => {
+    const montant = tx.quantity * tx.price
+    if (tx.type === 'achat' || tx.type === 'interets') return sum + montant
+    return sum - montant
   }, 0)
 
-  // Calcul des intérêts courus depuis le 1er janvier
+  // Calcul des intérêts
   const today = new Date()
   const debutAnnee = startOfYear(today)
   const joursEcoules = differenceInDays(today, debutAnnee)
@@ -65,9 +70,9 @@ export default function LivretPage() {
   const interetsRestants = solde * (taux / 100) * (joursRestants / 365)
   const interetsAnnee = solde * (taux / 100)
 
-  async function deleteMovement(mvtId: string) {
+  async function deleteTx(txId: string) {
     if (!confirm('Supprimer ce mouvement ?')) return
-    await supabase.from('livret_movements').delete().eq('id', mvtId)
+    await supabase.from('transactions').delete().eq('id', txId)
     loadData()
   }
 
@@ -87,13 +92,14 @@ export default function LivretPage() {
     </div>
   )
 
+  const fmt = (v: number) => v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
+
   return (
     <div style={{ minHeight: '100vh' }}>
       <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={async () => {}} />
 
       <main style={{ maxWidth: 750, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* Retour + titre */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
             <ArrowLeft size={18} />
@@ -107,20 +113,16 @@ export default function LivretPage() {
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 10 }}>
           <div style={card}>
-            <p style={label}>Solde actuel</p>
+            <p style={lbl}>Solde actuel</p>
             <p style={{ fontSize: 22, fontWeight: 500, filter: privacy ? 'blur(7px)' : 'none' }}>{fmt(solde)}</p>
           </div>
           <div style={card}>
-            <p style={label}>Taux annuel</p>
+            <p style={lbl}>Taux annuel</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {editRate ? (
                 <>
-                  <input
-                    type="number" step="0.01" value={newRate}
-                    onChange={e => setNewRate(e.target.value)}
-                    style={{ width: 70, padding: '4px 8px', borderRadius: 6, border: '0.5px solid var(--border)', fontSize: 14, background: 'var(--bg)', color: 'var(--text)' }}
-                    autoFocus
-                  />
+                  <input type="number" step="0.01" value={newRate} onChange={e => setNewRate(e.target.value)}
+                    style={{ width: 70, padding: '4px 8px', borderRadius: 6, border: '0.5px solid var(--border)', fontSize: 14, background: 'var(--bg)', color: 'var(--text)' }} autoFocus />
                   <span style={{ fontSize: 14 }}>%</span>
                   <button onClick={saveRate} style={{ fontSize: 12, color: 'var(--brand)', background: 'none', border: 'none', cursor: 'pointer' }}>OK</button>
                 </>
@@ -133,34 +135,34 @@ export default function LivretPage() {
             </div>
           </div>
           <div style={card}>
-            <p style={label}>Intérêts estimés {today.getFullYear()}</p>
+            <p style={lbl}>Intérêts estimés {today.getFullYear()}</p>
             <p style={{ fontSize: 22, fontWeight: 500, color: '#1D9E75', filter: privacy ? 'blur(7px)' : 'none' }}>{fmt(interetsAnnee)}</p>
           </div>
         </div>
 
-        {/* Projection intérêts */}
+        {/* Projection */}
         <div style={{ ...card, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div>
-            <p style={label}>Intérêts courus (depuis le 1er jan.)</p>
+            <p style={lbl}>Intérêts courus (depuis le 1er jan.)</p>
             <p style={{ fontSize: 16, fontWeight: 500, color: '#1D9E75', filter: privacy ? 'blur(6px)' : 'none' }}>{fmt(interetsCourus)}</p>
             <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{joursEcoules} jours écoulés</p>
           </div>
           <div>
-            <p style={label}>Intérêts restants (jusqu&apos;au 31 déc.)</p>
+            <p style={lbl}>Intérêts restants (jusqu&apos;au 31 déc.)</p>
             <p style={{ fontSize: 16, fontWeight: 500, color: 'var(--muted)', filter: privacy ? 'blur(6px)' : 'none' }}>{fmt(interetsRestants)}</p>
             <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{joursRestants} jours restants</p>
           </div>
         </div>
 
-        {/* Actions */}
+        {/* Boutons */}
         <div style={{ display: 'flex', gap: 8 }}>
-          {(['depot', 'retrait', 'interets'] as const).map(t => (
+          {([['achat', '+ Dépôt', 'var(--brand)'], ['vente', '- Retrait', '#E24B4A'], ['interets', '★ Intérêts reçus', '#1D9E75']] as const).map(([t, label, color]) => (
             <button key={t} onClick={() => { setModalType(t); setShowModal(true) }} style={{
-              flex: 1, padding: '9px', borderRadius: 8, border: '0.5px solid var(--border)',
-              background: t === 'depot' ? 'var(--brand)' : t === 'retrait' ? '#E24B4A' : '#1D9E75',
-              color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              flex: 1, padding: '9px', borderRadius: 8, border: 'none',
+              background: color, color: '#fff', fontSize: 13, fontWeight: 500,
+              cursor: 'pointer', fontFamily: 'var(--font-sans)',
             }}>
-              {t === 'depot' ? '+ Dépôt' : t === 'retrait' ? '- Retrait' : '★ Intérêts reçus'}
+              {label}
             </button>
           ))}
         </div>
@@ -169,30 +171,37 @@ export default function LivretPage() {
         <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
           <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)', background: 'var(--bg)' }}>
             <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Historique ({movements.length} mouvements)
+              Historique ({transactions.length} mouvements)
             </p>
           </div>
-          {!movements.length ? (
+          {!transactions.length ? (
             <p style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Aucun mouvement — faites votre premier dépôt</p>
-          ) : movements.map(m => (
-            <div key={m.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderBottom: '0.5px solid var(--border)', gap: 12, fontSize: 13 }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: m.type === 'depot' ? 'var(--brand)' : m.type === 'retrait' ? '#E24B4A' : '#1D9E75' }} />
-              <div style={{ flex: 1 }}>
-                <p style={{ fontWeight: 500 }}>{m.type === 'depot' ? 'Dépôt' : m.type === 'retrait' ? 'Retrait' : 'Intérêts reçus'}</p>
-                {m.note && <p style={{ fontSize: 11, color: 'var(--muted)' }}>{m.note}</p>}
+          ) : transactions.map(tx => {
+            const montant = tx.quantity * tx.price
+            const isDebit = tx.type === 'vente'
+            const color = tx.type === 'interets' ? '#1D9E75' : tx.type === 'vente' ? '#E24B4A' : 'var(--brand)'
+            const typeLabel = tx.type === 'achat' ? 'Dépôt' : tx.type === 'vente' ? 'Retrait' : 'Intérêts reçus'
+            return (
+              <div key={tx.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderBottom: '0.5px solid var(--border)', gap: 12, fontSize: 13 }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: color }} />
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontWeight: 500 }}>{typeLabel}</p>
+                  {tx.notes && <p style={{ fontSize: 11, color: 'var(--muted)' }}>{tx.notes}</p>}
+                  {tx.asset && <p style={{ fontSize: 11, color: 'var(--muted)' }}>{tx.asset.name}</p>}
+                </div>
+                <p style={{ color: 'var(--muted)', fontSize: 12 }}>{format(parseISO(tx.date), 'd MMM yyyy', { locale: fr })}</p>
+                <p style={{ fontWeight: 500, minWidth: 90, textAlign: 'right', filter: privacy ? 'blur(5px)' : 'none', color }}>
+                  {isDebit ? '-' : '+'}{fmt(montant)}
+                </p>
+                <button onClick={() => deleteTx(tx.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
+                  <Trash2 size={13} />
+                </button>
               </div>
-              <p style={{ color: 'var(--muted)', fontSize: 12 }}>{format(parseISO(m.date), 'd MMM yyyy', { locale: fr })}</p>
-              <p style={{ fontWeight: 500, minWidth: 90, textAlign: 'right', filter: privacy ? 'blur(5px)' : 'none', color: m.type === 'retrait' ? '#E24B4A' : m.type === 'interets' ? '#1D9E75' : 'var(--text)' }}>
-                {m.type === 'retrait' ? '-' : '+'}{fmt(m.amount)}
-              </p>
-              <button onClick={() => deleteMovement(m.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
-                <Trash2 size={13} />
-              </button>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </main>
 
@@ -200,6 +209,7 @@ export default function LivretPage() {
         <MovementModal
           type={modalType}
           accountId={id}
+          assets={assets}
           onClose={() => setShowModal(false)}
           onSuccess={loadData}
         />
@@ -208,29 +218,37 @@ export default function LivretPage() {
   )
 }
 
-function MovementModal({ type, accountId, onClose, onSuccess }: { type: 'depot' | 'retrait' | 'interets'; accountId: string; onClose: () => void; onSuccess: () => void }) {
+function MovementModal({ type, accountId, assets, onClose, onSuccess }: {
+  type: 'achat' | 'vente' | 'interets'
+  accountId: string
+  assets: { id: string; name: string }[]
+  onClose: () => void
+  onSuccess: () => void
+}) {
   const supabase = createClient()
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [note, setNote] = useState('')
+  const [assetId, setAssetId] = useState(assets[0]?.id ?? '')
   const [loading, setLoading] = useState(false)
 
-  const titles = { depot: 'Nouveau dépôt', retrait: 'Nouveau retrait', interets: 'Intérêts reçus' }
-  const colors = { depot: 'var(--brand)', retrait: '#E24B4A', interets: '#1D9E75' }
+  const titles = { achat: 'Nouveau dépôt', vente: 'Nouveau retrait', interets: 'Intérêts reçus' }
+  const colors = { achat: 'var(--brand)', vente: '#E24B4A', interets: '#1D9E75' }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    await supabase.from('livret_movements').insert({
+    await supabase.from('transactions').insert({
       user_id: user.id,
       account_id: accountId,
+      asset_id: assetId,
       type,
-      amount: parseFloat(amount),
+      quantity: 1,
+      price: parseFloat(amount),
       date,
-      note: note || null,
-      validated: true,
+      notes: note || null,
     })
     onSuccess(); onClose()
   }
@@ -243,6 +261,14 @@ function MovementModal({ type, accountId, onClose, onSuccess }: { type: 'depot' 
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={16} /></button>
         </div>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {assets.length > 1 && (
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Actif livret</label>
+              <select value={assetId} onChange={e => setAssetId(e.target.value)} style={inp}>
+                {assets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Montant (€)</label>
             <input type="number" step="0.01" min="0" value={amount} onChange={e => setAmount(e.target.value)} required autoFocus placeholder="0.00" style={inp} />
@@ -268,6 +294,7 @@ function MovementModal({ type, accountId, onClose, onSuccess }: { type: 'depot' 
 }
 
 const card: React.CSSProperties = { background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 10, padding: '14px 16px' }
-const label: React.CSSProperties = { fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }
+const lbl: React.CSSProperties = { fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }
 const inp: React.CSSProperties = { width: '100%', padding: '9px 11px', borderRadius: 7, border: '0.5px solid var(--border)', fontSize: 13, background: 'var(--bg)', color: 'var(--text)', outline: 'none', fontFamily: 'var(--font-sans)' }
-const fmt = (v: number) => v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
+ENDOFFILE
+echo "OK - $(wc -l < "/home/claude/wwcd/src/app/livrets/[id]/page.tsx") lignes"
