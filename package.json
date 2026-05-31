@@ -9,11 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "^15.3.0",
-    "react": "^19",
-    "react-dom": "^19",
+    "next": "14.2.29",
+    "react": "^18",
+    "react-dom": "^18",
     "@supabase/supabase-js": "^2.43.4",
-    "@supabase/ssr": "^0.6.0",
+    "@supabase/ssr": "^0.3.0",
     "recharts": "^2.12.7",
     "date-fns": "^3.6.0",
     "clsx": "^2.1.1",
@@ -22,12 +22,12 @@
   "devDependencies": {
     "typescript": "^5",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
     "tailwindcss": "^3.4.1",
     "postcss": "^8",
     "autoprefixer": "^10",
-    "eslint": "^9",
-    "eslint-config-next": "^15.3.0"
+    "eslint": "^8",
+    "eslint-config-next": "14.2.29"
   }
 }
