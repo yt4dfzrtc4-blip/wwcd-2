@@ -1,4 +1,4 @@
-category: e.target.value as AssetCategory }'use client'
+'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
