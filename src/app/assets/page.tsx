@@ -173,7 +173,7 @@ export default function AssetsPage() {
   )
 }
 
-function AccountRow({ acc, onDelete, onEdit }: { acc: Account; onDelete: (id: string) => void; onEdit: () => void }) {
+function AccountRow({ acc, onDelete, onEdit }: { acc: Account; onDelete: (id: string) => void; onEdit: () => void }) {   const isLivret = acc.type === 'livret'   return (     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: 13 }}       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}     >       <div style={{ paddingLeft: 22, flex: 1 }}>         <p style={{ fontWeight: 500 }}>{acc.name}</p>         <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{acc.type.toUpperCase()}</p>       </div>       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>         {isLivret && (           <a href={`/livrets/${acc.id}`} style={{ fontSize: 12, color: 'var(--brand)', textDecoration: 'none', padding: '4px 10px', border: '0.5px solid var(--brand)', borderRadius: 6 }}>             Gérer           </a>         )}         <button onClick={onEdit} style={iconBtn}><Pencil size={13} /></button>         <button onClick={() => onDelete(acc.id)} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={13} /></button>       </div>     </div>   ) }
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: 13 }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
