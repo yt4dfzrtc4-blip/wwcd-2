@@ -1,3 +1,4 @@
+cat > /home/claude/wwcd/src/app/assets/page.tsx << 'EOF'
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -17,6 +18,8 @@ export default function AssetsPage() {
   const [showAccountModal, setShowAccountModal] = useState(false)
   const [showBankModal, setShowBankModal] = useState(false)
   const [editAsset, setEditAsset] = useState<Asset | null>(null)
+  const [editAccount, setEditAccount] = useState<Account | null>(null)
+  const [editBank, setEditBank] = useState<Bank | null>(null)
   const [expandedBanks, setExpandedBanks] = useState<Record<string, boolean>>({})
 
   async function loadData() {
@@ -49,7 +52,7 @@ export default function AssetsPage() {
   }
 
   async function deleteBank(id: string) {
-    if (!confirm('Supprimer cette banque et dissocier ses comptes ?')) return
+    if (!confirm('Supprimer cette banque ?')) return
     await supabase.from('banks').delete().eq('id', id)
     loadData()
   }
@@ -63,34 +66,31 @@ export default function AssetsPage() {
 
       <main style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* BANQUES & COMPTES */}
         <section>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h1 style={{ fontSize: 18, fontWeight: 500 }}>Banques & Comptes</h1>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowBankModal(true)} style={{ ...btnStyle, background: 'var(--surface)', color: 'var(--text)', border: '0.5px solid var(--border)' }}>
+              <button onClick={() => { setEditBank(null); setShowBankModal(true) }} style={{ ...btnStyle, background: 'var(--surface)', color: 'var(--text)', border: '0.5px solid var(--border)' }}>
                 <Plus size={14} /> Nouvelle banque
               </button>
-              <button onClick={() => setShowAccountModal(true)} style={btnStyle}>
+              <button onClick={() => { setEditAccount(null); setShowAccountModal(true) }} style={btnStyle}>
                 <Plus size={14} /> Nouveau compte
               </button>
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {/* Comptes sans banque */}
             {accountsByBank(null).length > 0 && (
               <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
                 <div style={{ padding: '10px 16px', fontSize: 12, color: 'var(--muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '0.5px solid var(--border)', background: 'var(--bg)' }}>
                   Sans banque
                 </div>
                 {accountsByBank(null).map(acc => (
-                  <AccountRow key={acc.id} acc={acc} onDelete={deleteAccount} />
+                  <AccountRow key={acc.id} acc={acc} onDelete={deleteAccount} onEdit={() => { setEditAccount(acc); setShowAccountModal(true) }} />
                 ))}
               </div>
             )}
 
-            {/* Comptes par banque */}
             {banks.map(bank => (
               <div key={bank.id} style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
                 <div
@@ -102,10 +102,13 @@ export default function AssetsPage() {
                     <span style={{ fontSize: 14, fontWeight: 500 }}>{bank.name}</span>
                     <span style={{ fontSize: 11, color: 'var(--muted)' }}>{accountsByBank(bank.id).length} compte{accountsByBank(bank.id).length > 1 ? 's' : ''}</span>
                   </div>
-                  <button onClick={e => { e.stopPropagation(); deleteBank(bank.id) }} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={13} /></button>
+                  <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                    <button onClick={() => { setEditBank(bank); setShowBankModal(true) }} style={iconBtn}><Pencil size={13} /></button>
+                    <button onClick={() => deleteBank(bank.id)} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={13} /></button>
+                  </div>
                 </div>
                 {expandedBanks[bank.id] && accountsByBank(bank.id).map(acc => (
-                  <AccountRow key={acc.id} acc={acc} onDelete={deleteAccount} />
+                  <AccountRow key={acc.id} acc={acc} onDelete={deleteAccount} onEdit={() => { setEditAccount(acc); setShowAccountModal(true) }} />
                 ))}
                 {expandedBanks[bank.id] && accountsByBank(bank.id).length === 0 && (
                   <div style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted)' }}>Aucun compte — ajoutez-en un</div>
@@ -121,7 +124,6 @@ export default function AssetsPage() {
           </div>
         </section>
 
-        {/* ACTIFS */}
         <section>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h2 style={{ fontSize: 18, fontWeight: 500 }}>Actifs</h2>
@@ -166,13 +168,13 @@ export default function AssetsPage() {
       </main>
 
       {showAssetModal && <AssetModal asset={editAsset} onClose={() => { setShowAssetModal(false); setEditAsset(null) }} onSuccess={loadData} />}
-      {showAccountModal && <AccountModal banks={banks} onClose={() => setShowAccountModal(false)} onSuccess={loadData} />}
-      {showBankModal && <BankModal onClose={() => setShowBankModal(false)} onSuccess={loadData} />}
+      {showAccountModal && <AccountModal banks={banks} account={editAccount} onClose={() => { setShowAccountModal(false); setEditAccount(null) }} onSuccess={loadData} />}
+      {showBankModal && <BankModal bank={editBank} onClose={() => { setShowBankModal(false); setEditBank(null) }} onSuccess={loadData} />}
     </div>
   )
 }
 
-function AccountRow({ acc, onDelete }: { acc: Account; onDelete: (id: string) => void }) {
+function AccountRow({ acc, onDelete, onEdit }: { acc: Account; onDelete: (id: string) => void; onEdit: () => void }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: 13 }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
@@ -182,14 +184,17 @@ function AccountRow({ acc, onDelete }: { acc: Account; onDelete: (id: string) =>
         <p style={{ fontWeight: 500 }}>{acc.name}</p>
         <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{acc.type.toUpperCase()}</p>
       </div>
-      <button onClick={() => onDelete(acc.id)} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={13} /></button>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={onEdit} style={iconBtn}><Pencil size={13} /></button>
+        <button onClick={() => onDelete(acc.id)} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={13} /></button>
+      </div>
     </div>
   )
 }
 
-function BankModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+function BankModal({ bank, onClose, onSuccess }: { bank: Bank | null; onClose: () => void; onSuccess: () => void }) {
   const supabase = createClient()
-  const [name, setName] = useState('')
+  const [name, setName] = useState(bank?.name ?? '')
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -197,28 +202,36 @@ function BankModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () 
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    await supabase.from('banks').insert({ name, user_id: user.id })
+    if (bank?.id) {
+      await supabase.from('banks').update({ name }).eq('id', bank.id)
+    } else {
+      await supabase.from('banks').insert({ name, user_id: user.id })
+    }
     onSuccess(); onClose()
   }
 
   return (
-    <ModalWrap title="Nouvelle banque" onClose={onClose}>
+    <ModalWrap title={bank ? 'Modifier la banque' : 'Nouvelle banque'} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <Field label="Nom de la banque">
           <input value={name} onChange={e => setName(e.target.value)} required placeholder="Ex : Boursorama, CIC, Coinbase…" style={inp} />
         </Field>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
           <button type="button" onClick={onClose} style={cancelBtn}>Annuler</button>
-          <button type="submit" disabled={loading} style={submitBtn}>{loading ? '…' : 'Créer'}</button>
+          <button type="submit" disabled={loading} style={submitBtn}>{loading ? '…' : bank ? 'Modifier' : 'Créer'}</button>
         </div>
       </form>
     </ModalWrap>
   )
 }
 
-function AccountModal({ banks, onClose, onSuccess }: { banks: Bank[]; onClose: () => void; onSuccess: () => void }) {
+function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; account: Account | null; onClose: () => void; onSuccess: () => void }) {
   const supabase = createClient()
-  const [form, setForm] = useState({ name: '', type: 'pea', bank_id: '' })
+  const [form, setForm] = useState({
+    name: account?.name ?? '',
+    type: account?.type ?? 'pea',
+    bank_id: (account as any)?.bank_id ?? '',
+  })
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -226,17 +239,17 @@ function AccountModal({ banks, onClose, onSuccess }: { banks: Bank[]; onClose: (
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    await supabase.from('accounts').insert({
-      name: form.name,
-      type: form.type,
-      user_id: user.id,
-      bank_id: form.bank_id || null,
-    })
+    const payload = { name: form.name, type: form.type, bank_id: form.bank_id || null }
+    if (account?.id) {
+      await supabase.from('accounts').update(payload).eq('id', account.id)
+    } else {
+      await supabase.from('accounts').insert({ ...payload, user_id: user.id })
+    }
     onSuccess(); onClose()
   }
 
   return (
-    <ModalWrap title="Nouveau compte" onClose={onClose}>
+    <ModalWrap title={account ? 'Modifier le compte' : 'Nouveau compte'} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <Field label="Banque (optionnel)">
           <select value={form.bank_id} onChange={e => setForm(f => ({ ...f, bank_id: e.target.value }))} style={inp}>
@@ -254,7 +267,7 @@ function AccountModal({ banks, onClose, onSuccess }: { banks: Bank[]; onClose: (
         </Field>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
           <button type="button" onClick={onClose} style={cancelBtn}>Annuler</button>
-          <button type="submit" disabled={loading} style={submitBtn}>{loading ? '…' : 'Créer'}</button>
+          <button type="submit" disabled={loading} style={submitBtn}>{loading ? '…' : account ? 'Modifier' : 'Créer'}</button>
         </div>
       </form>
     </ModalWrap>
@@ -263,7 +276,6 @@ function AccountModal({ banks, onClose, onSuccess }: { banks: Bank[]; onClose: (
 
 function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClose: () => void; onSuccess: () => void }) {
   const supabase = createClient()
-  const isLivret = ['livret', 'cat', 'per'].includes(asset?.category ?? '')
   const [form, setForm] = useState({
     name: asset?.name ?? '',
     category: asset?.category ?? 'etf',
@@ -275,7 +287,6 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
     livret_rate: asset?.livret_rate?.toString() ?? '0',
   })
   const [loading, setLoading] = useState(false)
-
   const showLivretOptions = ['livret', 'cat', 'per', 'or'].includes(form.category)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -313,7 +324,6 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
             {Object.entries(CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Field>
-
         {showLivretOptions && (
           <Field label="Mode de gestion">
             <select value={form.livret_mode} onChange={e => setForm(f => ({ ...f, livret_mode: e.target.value as any }))} style={inp}>
@@ -323,7 +333,6 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
             </select>
           </Field>
         )}
-
         {showLivretOptions && form.livret_mode === 'balance' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <Field label="Solde actuel (€)">
@@ -334,14 +343,12 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
             </Field>
           </div>
         )}
-
         {!showLivretOptions && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <Field label="ISIN (optionnel)"><input value={form.isin} onChange={e => setForm(f => ({ ...f, isin: e.target.value }))} placeholder="FR0011869353" style={inp} /></Field>
             <Field label="Ticker (optionnel)"><input value={form.ticker} onChange={e => setForm(f => ({ ...f, ticker: e.target.value }))} placeholder="CW8.PA" style={inp} /></Field>
           </div>
         )}
-
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
           <button type="button" onClick={onClose} style={cancelBtn}>Annuler</button>
           <button type="submit" disabled={loading} style={submitBtn}>{loading ? '…' : asset ? 'Modifier' : 'Créer'}</button>
@@ -379,3 +386,5 @@ const btnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', g
 const iconBtn: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 2 }
 const cancelBtn: React.CSSProperties = { padding: '10px', borderRadius: 7, border: '0.5px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-sans)' }
 const submitBtn: React.CSSProperties = { padding: '10px', borderRadius: 7, border: 'none', background: 'var(--brand)', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font-sans)' }
+EOF
+echo "OK"
