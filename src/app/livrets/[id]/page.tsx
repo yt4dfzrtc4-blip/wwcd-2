@@ -15,7 +15,6 @@ interface Transaction {
   price: number
   date: string
   notes?: string
-  asset_id: string
   asset?: { id: string; name: string }
 }
 
@@ -32,7 +31,7 @@ export default function LivretPage() {
   const supabase = createClient()
   const [account, setAccount] = useState<Account | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [assets, setAssets] = useState<{ id: string; name: string }[]>([])
+  const [assetId, setAssetId] = useState<string | null>(null)
   const [privacy, setPrivacy] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [modalType, setModalType] = useState<'achat' | 'vente' | 'interets'>('achat')
@@ -40,30 +39,33 @@ export default function LivretPage() {
   const [newRate, setNewRate] = useState('')
 
   async function loadData() {
-    const [{ data: acc }, { data: txs }, { data: ast }] = await Promise.all([
-      supabase.from('accounts').select('*').eq('id', id).single(),
-      supabase.from('transactions').select('*, asset:assets(id, name)').eq('account_id', id).order('date', { ascending: false }),
-      supabase.from('assets').select('id, name').eq('category', 'livret'),
-    ])
+    const { data: acc } = await supabase.from('accounts').select('*').eq('id', id).single()
+    if (!acc) return
     setAccount(acc as Account)
+    setNewRate(acc.livret_rate?.toString() ?? '0')
+
+    // Cherche l'actif du même nom que le compte
+    const { data: ast } = await supabase.from('assets').select('id, name')
+      .eq('category', 'livret').eq('name', acc.name).single()
+    if (ast) setAssetId(ast.id)
+
+    const { data: txs } = await supabase.from('transactions')
+      .select('*, asset:assets(id, name)')
+      .eq('account_id', id)
+      .order('date', { ascending: false })
     setTransactions((txs ?? []) as Transaction[])
-    setAssets((ast ?? []) as { id: string; name: string }[])
-    setNewRate(acc?.livret_rate?.toString() ?? '0')
   }
 
   useEffect(() => { loadData() }, [id])
 
-  // Solde = somme des dépôts et intérêts - retraits
   const solde = transactions.reduce((sum, tx) => {
     const montant = tx.quantity * tx.price
     if (tx.type === 'achat' || tx.type === 'interets') return sum + montant
     return sum - montant
   }, 0)
 
-  // Calcul des intérêts
   const today = new Date()
-  const debutAnnee = startOfYear(today)
-  const joursEcoules = differenceInDays(today, debutAnnee)
+  const joursEcoules = differenceInDays(today, startOfYear(today))
   const joursRestants = 365 - joursEcoules
   const taux = account?.livret_rate ?? 0
   const interetsCourus = solde * (taux / 100) * (joursEcoules / 365)
@@ -85,6 +87,8 @@ export default function LivretPage() {
     loadData()
   }
 
+  const fmt = (v: number) => v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
+
   if (!account) return (
     <div style={{ minHeight: '100vh' }}>
       <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={async () => {}} />
@@ -92,12 +96,9 @@ export default function LivretPage() {
     </div>
   )
 
-  const fmt = (v: number) => v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
-
   return (
     <div style={{ minHeight: '100vh' }}>
       <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={async () => {}} />
-
       <main style={{ maxWidth: 750, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -110,7 +111,12 @@ export default function LivretPage() {
           </div>
         </div>
 
-        {/* KPIs */}
+        {!assetId && (
+          <div style={{ background: '#FAEEDA', border: '0.5px solid #EF9F27', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#633806' }}>
+            Aucun actif livret trouvé avec le nom <strong>{account.name}</strong>. Créez un actif de catégorie &quot;Livret&quot; avec ce même nom dans la page Actifs.
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 10 }}>
           <div style={card}>
             <p style={lbl}>Solde actuel</p>
@@ -140,7 +146,6 @@ export default function LivretPage() {
           </div>
         </div>
 
-        {/* Projection */}
         <div style={{ ...card, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div>
             <p style={lbl}>Intérêts courus (depuis le 1er jan.)</p>
@@ -154,20 +159,18 @@ export default function LivretPage() {
           </div>
         </div>
 
-        {/* Boutons */}
         <div style={{ display: 'flex', gap: 8 }}>
           {([['achat', '+ Dépôt', 'var(--brand)'], ['vente', '- Retrait', '#E24B4A'], ['interets', '★ Intérêts reçus', '#1D9E75']] as const).map(([t, label, color]) => (
-            <button key={t} onClick={() => { setModalType(t); setShowModal(true) }} style={{
+            <button key={t} disabled={!assetId} onClick={() => { setModalType(t); setShowModal(true) }} style={{
               flex: 1, padding: '9px', borderRadius: 8, border: 'none',
-              background: color, color: '#fff', fontSize: 13, fontWeight: 500,
-              cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              background: assetId ? color : 'var(--muted)', color: '#fff', fontSize: 13, fontWeight: 500,
+              cursor: assetId ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-sans)',
             }}>
               {label}
             </button>
           ))}
         </div>
 
-        {/* Historique */}
         <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
           <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)', background: 'var(--bg)' }}>
             <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -178,7 +181,6 @@ export default function LivretPage() {
             <p style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Aucun mouvement — faites votre premier dépôt</p>
           ) : transactions.map(tx => {
             const montant = tx.quantity * tx.price
-            const isDebit = tx.type === 'vente'
             const color = tx.type === 'interets' ? '#1D9E75' : tx.type === 'vente' ? '#E24B4A' : 'var(--brand)'
             const typeLabel = tx.type === 'achat' ? 'Dépôt' : tx.type === 'vente' ? 'Retrait' : 'Intérêts reçus'
             return (
@@ -190,11 +192,10 @@ export default function LivretPage() {
                 <div style={{ flex: 1 }}>
                   <p style={{ fontWeight: 500 }}>{typeLabel}</p>
                   {tx.notes && <p style={{ fontSize: 11, color: 'var(--muted)' }}>{tx.notes}</p>}
-                  {tx.asset && <p style={{ fontSize: 11, color: 'var(--muted)' }}>{tx.asset.name}</p>}
                 </div>
                 <p style={{ color: 'var(--muted)', fontSize: 12 }}>{format(parseISO(tx.date), 'd MMM yyyy', { locale: fr })}</p>
                 <p style={{ fontWeight: 500, minWidth: 90, textAlign: 'right', filter: privacy ? 'blur(5px)' : 'none', color }}>
-                  {isDebit ? '-' : '+'}{fmt(montant)}
+                  {tx.type === 'vente' ? '-' : '+'}{fmt(montant)}
                 </p>
                 <button onClick={() => deleteTx(tx.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
                   <Trash2 size={13} />
@@ -205,11 +206,11 @@ export default function LivretPage() {
         </div>
       </main>
 
-      {showModal && (
+      {showModal && assetId && (
         <MovementModal
           type={modalType}
           accountId={id}
-          assets={assets}
+          assetId={assetId}
           onClose={() => setShowModal(false)}
           onSuccess={loadData}
         />
@@ -218,10 +219,10 @@ export default function LivretPage() {
   )
 }
 
-function MovementModal({ type, accountId, assets, onClose, onSuccess }: {
+function MovementModal({ type, accountId, assetId, onClose, onSuccess }: {
   type: 'achat' | 'vente' | 'interets'
   accountId: string
-  assets: { id: string; name: string }[]
+  assetId: string
   onClose: () => void
   onSuccess: () => void
 }) {
@@ -229,7 +230,6 @@ function MovementModal({ type, accountId, assets, onClose, onSuccess }: {
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [note, setNote] = useState('')
-  const [assetId, setAssetId] = useState(assets[0]?.id ?? '')
   const [loading, setLoading] = useState(false)
 
   const titles = { achat: 'Nouveau dépôt', vente: 'Nouveau retrait', interets: 'Intérêts reçus' }
@@ -261,14 +261,6 @@ function MovementModal({ type, accountId, assets, onClose, onSuccess }: {
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={16} /></button>
         </div>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {assets.length > 1 && (
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Actif livret</label>
-              <select value={assetId} onChange={e => setAssetId(e.target.value)} style={inp}>
-                {assets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-            </div>
-          )}
           <div>
             <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Montant (€)</label>
             <input type="number" step="0.01" min="0" value={amount} onChange={e => setAmount(e.target.value)} required autoFocus placeholder="0.00" style={inp} />
