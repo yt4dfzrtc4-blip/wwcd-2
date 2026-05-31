@@ -296,5 +296,3 @@ function MovementModal({ type, accountId, assets, onClose, onSuccess }: {
 const card: React.CSSProperties = { background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 10, padding: '14px 16px' }
 const lbl: React.CSSProperties = { fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }
 const inp: React.CSSProperties = { width: '100%', padding: '9px 11px', borderRadius: 7, border: '0.5px solid var(--border)', fontSize: 13, background: 'var(--bg)', color: 'var(--text)', outline: 'none', fontFamily: 'var(--font-sans)' }
-ENDOFFILE
-echo "OK - $(wc -l < "/home/claude/wwcd/src/app/livrets/[id]/page.tsx") lignes"
