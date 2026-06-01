@@ -91,12 +91,22 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: '100vh' }}>
+      <style>{`
+        @media (max-width: 639px) {
+          .rsp-kpi   { grid-template-columns: repeat(2, 1fr) !important; }
+          .rsp-2col  { grid-template-columns: 1fr !important; }
+          .rsp-hide  { display: none !important; }
+          .rsp-row   { grid-template-columns: 1fr 90px 100px 16px !important; }
+          .rsp-kpi p.kpi-value { font-size: 17px !important; }
+          .rsp-kpi p.kpi-label { font-size: 10px !important; }
+        }
+      `}</style>
       <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={handleRefresh} refreshing={refreshing} />
 
       <main style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 16px' }}>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-[10px] mb-4">
+        <div className="rsp-kpi" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 10, marginBottom: 16 }}>
           <KpiCard label="Patrimoine total" value={s ? formatEur(s.total_value, 0) : '–'} sub={s ? `Capital : ${formatEur(s.total_invested, 0)}` : undefined} hidden={privacy} />
           <KpiCard label="Plus-value latente" value={s ? formatEur(s.total_pnl, 0) : '–'} sub={s ? formatPct(s.total_pnl_pct) : undefined} subColor={s && s.total_pnl >= 0 ? 'gain' : 'loss'} hidden={privacy} />
           <KpiCard label="Performance globale" value={s ? formatPct(s.total_pnl_pct) : '–'} subColor={s && s.total_pnl_pct >= 0 ? 'gain' : 'loss'} hidden={privacy} />
@@ -104,7 +114,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Graphiques */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px] mb-4">
+        <div className="rsp-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
             <p style={sectionLabel}>Évolution 12 mois</p>
             <EvolutionChart snapshots={snapshots} hidden={privacy} />
@@ -117,7 +127,7 @@ export default function DashboardPage() {
 
         {/* Répartition par banque */}
         {byBank.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px] mb-4">
+          <div className="rsp-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
             <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
               <p style={sectionLabel}>Par banque</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
@@ -167,12 +177,12 @@ export default function DashboardPage() {
           </div>
 
           {/* En-tête */}
-          <div className="grid grid-cols-[1fr_90px_100px_16px] sm:grid-cols-[1fr_100px_110px_70px_20px] gap-2 px-[10px] py-1 text-[11px]" style={{ color: 'var(--muted)' }}>
+          <div className="rsp-row" style={{ display: 'grid', gridTemplateColumns: '1fr 100px 110px 70px 20px', gap: 8, padding: '4px 10px', fontSize: 11, color: 'var(--muted)' }}>
             <span>Actif</span>
-            <span className="text-right">Valeur</span>
-            <span className="text-right">+/- latent</span>
-            <span className="hidden sm:block text-right">Catégorie</span>
-            <span className="hidden sm:block" />
+            <span style={{ textAlign: 'right' }}>Valeur</span>
+            <span style={{ textAlign: 'right' }}>+/- latent</span>
+            <span className="rsp-hide" style={{ textAlign: 'right' }}>Catégorie</span>
+            <span className="rsp-hide" />
           </div>
 
           {!s?.positions.length ? (
@@ -202,19 +212,22 @@ function PositionRow({ pos, hidden, onClick }: { pos: Position; hidden: boolean;
   const isGain = pos.pnl >= 0
   return (
     <div
-      className="grid grid-cols-[1fr_90px_100px_16px] sm:grid-cols-[1fr_100px_110px_70px_20px] gap-2 px-[10px] py-[9px] rounded-[7px] cursor-pointer items-center text-[13px] hover:bg-[--bg] transition-colors"
+      className="rsp-row"
       onClick={onClick}
+      style={{ display: 'grid', gridTemplateColumns: '1fr 100px 110px 70px 20px', gap: 8, padding: '9px 10px', borderRadius: 7, cursor: 'pointer', alignItems: 'center', fontSize: 13 }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
       <div>
         <p style={{ fontWeight: 500, fontSize: 13 }}>{pos.asset.name}</p>
         <p style={{ fontSize: 11, color: 'var(--muted)' }}>{pos.account.name}</p>
       </div>
-      <p className="text-right font-medium" style={{ filter: hidden ? 'blur(6px)' : 'none' }}>{formatEur(pos.current_value, 0)}</p>
-      <div className="text-right" style={{ filter: hidden ? 'blur(6px)' : 'none' }}>
+      <p style={{ textAlign: 'right', fontWeight: 500, filter: hidden ? 'blur(6px)' : 'none' }}>{formatEur(pos.current_value, 0)}</p>
+      <div style={{ textAlign: 'right', filter: hidden ? 'blur(6px)' : 'none' }}>
         <p style={{ color: isGain ? 'var(--green)' : 'var(--red)', fontWeight: 500 }}>{isGain ? '+' : ''}{formatEur(pos.pnl, 0)}</p>
         <p style={{ fontSize: 11, color: isGain ? 'var(--green)' : 'var(--red)' }}>{formatPct(pos.pnl_pct)}</p>
       </div>
-      <div className="hidden sm:block text-right">
+      <div className="rsp-hide" style={{ textAlign: 'right' }}>
         <span className={`badge badge-${pos.asset.category}`}>{CATEGORY_LABELS[pos.asset.category] ?? pos.asset.category}</span>
       </div>
       <ChevronRight size={14} color="var(--muted)" />

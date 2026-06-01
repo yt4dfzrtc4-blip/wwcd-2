@@ -77,7 +77,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
               }}
             >
               <Icon size={15} />
-              <span className="hidden sm:inline">{label}</span>
+              <span className="topbar-label">{label}</span>
             </button>
           )
         })}
@@ -97,7 +97,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
           }}
         >
           <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-          <span className="hidden sm:inline">Actualiser</span>
+          <span className="topbar-label">Actualiser</span>
         </button>
 
         <button onClick={onTogglePrivacy} title="Mode confidentialité" style={{
@@ -120,7 +120,12 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
         </button>
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 639px) {
+          .topbar-label { display: none !important; }
+        }
+      `}</style>
     </header>
   )
 }
