@@ -96,7 +96,7 @@ export default function DashboardPage() {
       <main style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 16px' }}>
 
         {/* KPIs */}
-        <div className="grid-kpi">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-[10px] mb-4">
           <KpiCard label="Patrimoine total" value={s ? formatEur(s.total_value, 0) : '–'} sub={s ? `Capital : ${formatEur(s.total_invested, 0)}` : undefined} hidden={privacy} />
           <KpiCard label="Plus-value latente" value={s ? formatEur(s.total_pnl, 0) : '–'} sub={s ? formatPct(s.total_pnl_pct) : undefined} subColor={s && s.total_pnl >= 0 ? 'gain' : 'loss'} hidden={privacy} />
           <KpiCard label="Performance globale" value={s ? formatPct(s.total_pnl_pct) : '–'} subColor={s && s.total_pnl_pct >= 0 ? 'gain' : 'loss'} hidden={privacy} />
@@ -104,7 +104,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Graphiques */}
-        <div className="grid-charts">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px] mb-4">
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
             <p style={sectionLabel}>Évolution 12 mois</p>
             <EvolutionChart snapshots={snapshots} hidden={privacy} />
@@ -117,7 +117,7 @@ export default function DashboardPage() {
 
         {/* Répartition par banque */}
         {byBank.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px] mb-4">
             <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
               <p style={sectionLabel}>Par banque</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
@@ -167,12 +167,12 @@ export default function DashboardPage() {
           </div>
 
           {/* En-tête */}
-          <div className="position-header">
+          <div className="grid grid-cols-[1fr_90px_100px_16px] sm:grid-cols-[1fr_100px_110px_70px_20px] gap-2 px-[10px] py-1 text-[11px]" style={{ color: 'var(--muted)' }}>
             <span>Actif</span>
-            <span style={{ textAlign: 'right' }}>Valeur</span>
-            <span style={{ textAlign: 'right' }}>+/- latent</span>
-            <span className="col-category" style={{ textAlign: 'right' }}>Catégorie</span>
-            <span />
+            <span className="text-right">Valeur</span>
+            <span className="text-right">+/- latent</span>
+            <span className="hidden sm:block text-right">Catégorie</span>
+            <span className="hidden sm:block" />
           </div>
 
           {!s?.positions.length ? (
@@ -201,17 +201,20 @@ const sectionLabel: React.CSSProperties = { fontSize: 11, fontWeight: 500, color
 function PositionRow({ pos, hidden, onClick }: { pos: Position; hidden: boolean; onClick: () => void }) {
   const isGain = pos.pnl >= 0
   return (
-    <div className="position-row" onClick={onClick}>
+    <div
+      className="grid grid-cols-[1fr_90px_100px_16px] sm:grid-cols-[1fr_100px_110px_70px_20px] gap-2 px-[10px] py-[9px] rounded-[7px] cursor-pointer items-center text-[13px] hover:bg-[--bg] transition-colors"
+      onClick={onClick}
+    >
       <div>
         <p style={{ fontWeight: 500, fontSize: 13 }}>{pos.asset.name}</p>
         <p style={{ fontSize: 11, color: 'var(--muted)' }}>{pos.account.name}</p>
       </div>
-      <p style={{ textAlign: 'right', fontWeight: 500, filter: hidden ? 'blur(6px)' : 'none' }}>{formatEur(pos.current_value, 0)}</p>
-      <div style={{ textAlign: 'right', filter: hidden ? 'blur(6px)' : 'none' }}>
+      <p className="text-right font-medium" style={{ filter: hidden ? 'blur(6px)' : 'none' }}>{formatEur(pos.current_value, 0)}</p>
+      <div className="text-right" style={{ filter: hidden ? 'blur(6px)' : 'none' }}>
         <p style={{ color: isGain ? 'var(--green)' : 'var(--red)', fontWeight: 500 }}>{isGain ? '+' : ''}{formatEur(pos.pnl, 0)}</p>
         <p style={{ fontSize: 11, color: isGain ? 'var(--green)' : 'var(--red)' }}>{formatPct(pos.pnl_pct)}</p>
       </div>
-      <div className="col-category" style={{ textAlign: 'right' }}>
+      <div className="hidden sm:block text-right">
         <span className={`badge badge-${pos.asset.category}`}>{CATEGORY_LABELS[pos.asset.category] ?? pos.asset.category}</span>
       </div>
       <ChevronRight size={14} color="var(--muted)" />
