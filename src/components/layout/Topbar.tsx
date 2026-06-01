@@ -77,7 +77,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
               }}
             >
               <Icon size={15} />
-              {label}
+              <span className="topbar-nav-label">{label}</span>
             </button>
           )
         })}
@@ -97,7 +97,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
           }}
         >
           <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-          Actualiser
+          <span className="topbar-refresh-label">Actualiser</span>
         </button>
 
         <button onClick={onTogglePrivacy} title="Mode confidentialité" style={{

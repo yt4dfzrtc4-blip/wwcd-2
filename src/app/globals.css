@@ -68,3 +68,84 @@ body {
 /* Couleurs PnL */
 .text-gain { color: var(--green); }
 .text-loss { color: var(--red); }
+
+/* ── Grilles responsives ── */
+
+/* KPI cards : 2 colonnes sur mobile, 4 sur desktop */
+.grid-kpi {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+@media (min-width: 640px) {
+  .grid-kpi { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* Graphiques : 1 colonne sur mobile, 2 sur desktop */
+.grid-charts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+@media (min-width: 640px) {
+  .grid-charts { grid-template-columns: 1fr 1fr; }
+}
+
+/* Ligne de position (tableau) */
+.position-row {
+  display: grid;
+  grid-template-columns: 1fr 90px 90px 20px;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  align-items: center;
+  font-size: 13px;
+  transition: background 0.1s;
+}
+.position-row:hover { background: var(--bg); }
+
+.position-row .col-category { display: none; }
+.position-row .col-pnl-detail { display: none; }
+
+@media (min-width: 640px) {
+  .position-row {
+    grid-template-columns: 1fr 100px 110px 70px 20px;
+  }
+  .position-row .col-category { display: block; }
+}
+
+/* En-tête du tableau de positions */
+.position-header {
+  display: grid;
+  grid-template-columns: 1fr 90px 90px 20px;
+  gap: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.position-header .col-category { display: none; }
+
+@media (min-width: 640px) {
+  .position-header {
+    grid-template-columns: 1fr 100px 110px 70px 20px;
+  }
+  .position-header .col-category { display: block; }
+}
+
+/* Topbar : navigation compacte sur mobile */
+.topbar-nav-label {
+  display: none;
+}
+@media (min-width: 480px) {
+  .topbar-nav-label { display: inline; }
+}
+
+.topbar-refresh-label {
+  display: none;
+}
+@media (min-width: 480px) {
+  .topbar-refresh-label { display: inline; }
+}

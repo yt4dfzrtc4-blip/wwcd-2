@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 
-// Récupère le cours d'un ticker Yahoo Finance
 async function fetchYahooPrice(ticker: string): Promise<{ price: number; change_pct: number } | null> {
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2d`
@@ -22,7 +22,6 @@ async function fetchYahooPrice(ticker: string): Promise<{ price: number; change_
   }
 }
 
-// Récupère le cours d'une crypto via CoinGecko
 async function fetchCoinGeckoPrice(coinId: string): Promise<{ price: number; change_pct: number } | null> {
   try {
     const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=eur&include_24hr_change=true`
@@ -31,28 +30,19 @@ async function fetchCoinGeckoPrice(coinId: string): Promise<{ price: number; cha
     const data = await res.json()
     const coin = data[coinId]
     if (!coin) return null
-    return {
-      price: coin.eur,
-      change_pct: coin.eur_24h_change ?? 0,
-    }
+    return { price: coin.eur, change_pct: coin.eur_24h_change ?? 0 }
   } catch {
     return null
   }
 }
 
-export async function POST() {
-  const supabase = createClient()
+async function refreshPrices(supabase: ReturnType<typeof createServiceClient>, userId?: string) {
+  const query = supabase.from('assets').select('id, ticker, category, user_id')
+  if (userId) query.eq('user_id', userId)
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  const { data: assets } = await query
 
-  // Récupérer tous les actifs de l'utilisateur
-  const { data: assets } = await supabase
-    .from('assets')
-    .select('id, ticker, category')
-    .eq('user_id', user.id)
-
-  if (!assets?.length) return NextResponse.json({ updated: 0 })
+  if (!assets?.length) return { updated: 0, errors: [] }
 
   let updated = 0
   const errors: string[] = []
@@ -67,7 +57,6 @@ export async function POST() {
     } else if (['action', 'etf'].includes(asset.category)) {
       priceData = await fetchYahooPrice(asset.ticker)
     }
-    // Livrets, CAT, Or : valorisation manuelle, on ne touche pas
 
     if (!priceData) {
       errors.push(asset.ticker)
@@ -86,9 +75,29 @@ export async function POST() {
     if (!error) updated++
   }
 
-  return NextResponse.json({ updated, errors })
+  return { updated, errors }
 }
 
-export async function GET() {
-  return POST()
+// Appelé par Vercel Cron (GET avec Authorization: Bearer <CRON_SECRET>)
+export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get('authorization')
+  const secret = process.env.CRON_SECRET
+  if (!secret || authHeader !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  }
+
+  const supabase = createServiceClient()
+  const result = await refreshPrices(supabase)
+  return NextResponse.json(result)
+}
+
+// Appelé manuellement depuis l'app (POST avec session utilisateur)
+export async function POST() {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
+  const serviceClient = createServiceClient()
+  const result = await refreshPrices(serviceClient, user.id)
+  return NextResponse.json(result)
 }
