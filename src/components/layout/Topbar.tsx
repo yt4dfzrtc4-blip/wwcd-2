@@ -10,9 +10,10 @@ interface TopbarProps {
   onTogglePrivacy: () => void
   onRefresh: () => void
   refreshing?: boolean
+  mobile?: boolean
 }
 
-export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing }: TopbarProps) {
+export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing, mobile }: TopbarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -77,7 +78,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
               }}
             >
               <Icon size={15} />
-              <span className="topbar-label">{label}</span>
+              {!mobile && <span>{label}</span>}
             </button>
           )
         })}
@@ -97,7 +98,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
           }}
         >
           <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-          <span className="topbar-label">Actualiser</span>
+          {!mobile && <span>Actualiser</span>}
         </button>
 
         <button onClick={onTogglePrivacy} title="Mode confidentialité" style={{
