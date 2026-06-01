@@ -17,6 +17,14 @@ export default function TransactionsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editTx, setEditTx] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [mobile, setMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   async function loadData() {
     const { data } = await supabase
@@ -35,6 +43,10 @@ export default function TransactionsPage() {
     loadData()
   }
 
+  const cols = mobile
+    ? '80px 1fr 80px 50px'
+    : '95px 60px 1fr 90px 90px 90px 60px'
+
   return (
     <div style={{ minHeight: '100vh' }}>
       <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={async () => {}} />
@@ -52,24 +64,24 @@ export default function TransactionsPage() {
               cursor: 'pointer', fontFamily: 'var(--font-sans)',
             }}
           >
-            <Plus size={15} /> Nouvelle transaction
+            <Plus size={15} /> {mobile ? 'Ajouter' : 'Nouvelle transaction'}
           </button>
         </div>
 
         <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
           {/* En-tête */}
           <div style={{
-            display: 'grid', gridTemplateColumns: '95px 60px 1fr 90px 90px 90px 60px',
+            display: 'grid', gridTemplateColumns: cols,
             gap: 8, padding: '10px 16px',
             borderBottom: '0.5px solid var(--border)',
             fontSize: 11, color: 'var(--muted)',
             background: 'var(--bg)',
           }}>
             <span>Date</span>
-            <span>Type</span>
+            {!mobile && <span>Type</span>}
             <span>Actif</span>
-            <span style={{ textAlign: 'right' }}>Qté</span>
-            <span style={{ textAlign: 'right' }}>Prix</span>
+            {!mobile && <span style={{ textAlign: 'right' }}>Qté</span>}
+            {!mobile && <span style={{ textAlign: 'right' }}>Prix</span>}
             <span style={{ textAlign: 'right' }}>Total</span>
             <span />
           </div>
@@ -89,7 +101,7 @@ export default function TransactionsPage() {
                 <div
                   key={tx.id}
                   style={{
-                    display: 'grid', gridTemplateColumns: '95px 60px 1fr 90px 90px 90px 60px',
+                    display: 'grid', gridTemplateColumns: cols,
                     gap: 8, padding: '10px 16px',
                     borderBottom: '0.5px solid var(--border)',
                     fontSize: 13, alignItems: 'center',
@@ -98,19 +110,24 @@ export default function TransactionsPage() {
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
                   <span style={{ color: 'var(--muted)', fontSize: 12 }}>
-                    {format(parseISO(tx.date), 'd MMM yyyy', { locale: fr })}
+                    {format(parseISO(tx.date), mobile ? 'd MMM' : 'd MMM yyyy', { locale: fr })}
                   </span>
-                  <span style={{ fontWeight: 500, color: tx.type === 'achat' ? 'var(--green)' : 'var(--red)' }}>
-                    {tx.type === 'achat' ? 'Achat' : 'Vente'}
-                  </span>
+                  {!mobile && (
+                    <span style={{ fontWeight: 500, color: tx.type === 'achat' ? 'var(--green)' : 'var(--red)' }}>
+                      {tx.type === 'achat' ? 'Achat' : 'Vente'}
+                    </span>
+                  )}
                   <div>
-                    <p style={{ fontWeight: 500 }}>{asset?.name ?? '–'}</p>
-                    <p style={{ fontSize: 11, color: 'var(--muted)' }}>
-                      {account?.name} · <span className={`badge badge-${asset?.category}`}>{CATEGORY_LABELS[asset?.category] ?? ''}</span>
+                    <p style={{ fontWeight: 500, fontSize: mobile ? 12 : 13 }}>{asset?.name ?? '–'}</p>
+                    <p style={{ fontSize: 10, color: mobile ? (tx.type === 'achat' ? 'var(--green)' : 'var(--red)') : 'var(--muted)' }}>
+                      {mobile
+                        ? (tx.type === 'achat' ? 'Achat' : 'Vente')
+                        : <>{account?.name} · <span className={`badge badge-${asset?.category}`}>{CATEGORY_LABELS[asset?.category] ?? ''}</span></>
+                      }
                     </p>
                   </div>
-                  <span style={{ textAlign: 'right', filter: privacy ? 'blur(5px)' : 'none' }}>{tx.quantity.toFixed(4)}</span>
-                  <span style={{ textAlign: 'right', filter: privacy ? 'blur(5px)' : 'none' }}>{formatEur(tx.price)}</span>
+                  {!mobile && <span style={{ textAlign: 'right', filter: privacy ? 'blur(5px)' : 'none' }}>{tx.quantity.toFixed(4)}</span>}
+                  {!mobile && <span style={{ textAlign: 'right', filter: privacy ? 'blur(5px)' : 'none' }}>{formatEur(tx.price)}</span>}
                   <span style={{ textAlign: 'right', fontWeight: 500, filter: privacy ? 'blur(5px)' : 'none' }}>{formatEur(total, 0)}</span>
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                     <button onClick={() => { setEditTx(tx); setShowModal(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>

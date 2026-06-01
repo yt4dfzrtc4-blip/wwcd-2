@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { LayoutDashboard, ArrowLeftRight, TrendingUp, Eye, EyeOff, RefreshCw, LogOut } from 'lucide-react'
@@ -13,10 +13,20 @@ interface TopbarProps {
   mobile?: boolean
 }
 
-export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing, mobile }: TopbarProps) {
+export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing, mobile: mobileProp }: TopbarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
+  const mobile = mobileProp ?? isMobile
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -33,7 +43,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
     <header style={{
       background: 'var(--surface)',
       borderBottom: '0.5px solid var(--border)',
-      padding: '0 20px',
+      padding: '0 16px',
       display: 'flex',
       alignItems: 'center',
       height: 52,
@@ -47,7 +57,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
         fontWeight: 500,
         color: 'var(--brand)',
         letterSpacing: '0.06em',
-        marginRight: 32,
+        marginRight: mobile ? 12 : 32,
         flexShrink: 0,
       }}>
         WWCD
@@ -65,7 +75,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '6px 12px',
+                padding: mobile ? '6px 8px' : '6px 12px',
                 borderRadius: 7,
                 border: 'none',
                 background: active ? 'var(--brand-light)' : 'transparent',
@@ -91,7 +101,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
           title="Actualiser les cours"
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
-            padding: '5px 10px', borderRadius: 7,
+            padding: mobile ? '5px 8px' : '5px 10px', borderRadius: 7,
             border: '0.5px solid var(--border)',
             background: 'transparent', color: 'var(--muted)',
             fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
@@ -121,12 +131,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
         </button>
       </div>
 
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @media (max-width: 639px) {
-          .topbar-label { display: none !important; }
-        }
-      `}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </header>
   )
 }

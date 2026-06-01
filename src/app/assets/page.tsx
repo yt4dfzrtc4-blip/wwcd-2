@@ -20,6 +20,14 @@ export default function AssetsPage() {
   const [editAccount, setEditAccount] = useState<Account | null>(null)
   const [editBank, setEditBank] = useState<Bank | null>(null)
   const [expandedBanks, setExpandedBanks] = useState<Record<string, boolean>>({})
+  const [mobile, setMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   async function loadData() {
     const [{ data: ast }, { data: acc }, { data: bnk }] = await Promise.all([
@@ -69,9 +77,9 @@ export default function AssetsPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h1 style={{ fontSize: 18, fontWeight: 500 }}>Banques & Comptes</h1>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setEditBank(null); setShowBankModal(true) }} style={{ ...btnStyle, background: 'var(--surface)', color: 'var(--text)', border: '0.5px solid var(--border)' }}>
+              {!mobile && <button onClick={() => { setEditBank(null); setShowBankModal(true) }} style={{ ...btnStyle, background: 'var(--surface)', color: 'var(--text)', border: '0.5px solid var(--border)' }}>
                 <Plus size={14} /> Nouvelle banque
-              </button>
+              </button>}
               <button onClick={() => { setEditAccount(null); setShowAccountModal(true) }} style={btnStyle}>
                 <Plus size={14} /> Nouveau compte
               </button>
@@ -132,30 +140,34 @@ export default function AssetsPage() {
           </div>
 
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 110px 100px 50px', gap: 8, padding: '9px 16px', background: 'var(--bg)', borderBottom: '0.5px solid var(--border)', fontSize: 11, color: 'var(--muted)' }}>
-              <span>Nom</span><span>Catégorie</span><span>ISIN / Ticker</span><span style={{ textAlign: 'right' }}>Valeur / Solde</span><span />
+            <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 80px 50px' : '1fr 90px 110px 100px 50px', gap: 8, padding: '9px 16px', background: 'var(--bg)', borderBottom: '0.5px solid var(--border)', fontSize: 11, color: 'var(--muted)' }}>
+              <span>Nom</span>
+              <span>{mobile ? 'Catégorie' : 'Catégorie'}</span>
+              {!mobile && <span>ISIN / Ticker</span>}
+              {!mobile && <span style={{ textAlign: 'right' }}>Valeur / Solde</span>}
+              <span />
             </div>
             {!assets.length ? (
               <p style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Aucun actif</p>
             ) : assets.map(a => (
               <div key={a.id}
-                style={{ display: 'grid', gridTemplateColumns: '1fr 90px 110px 100px 50px', gap: 8, padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: 13, alignItems: 'center' }}
+                style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 80px 50px' : '1fr 90px 110px 100px 50px', gap: 8, padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: 13, alignItems: 'center' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
                 <div>
-                  <span style={{ fontWeight: 500 }}>{a.name}</span>
-                  {a.livret_mode === 'balance' && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>solde simple</span>}
-                  {a.livret_mode === 'transactions' && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>avec transactions</span>}
+                  <span style={{ fontWeight: 500, fontSize: mobile ? 12 : 13 }}>{a.name}</span>
+                  {!mobile && a.livret_mode === 'balance' && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>solde simple</span>}
+                  {!mobile && a.livret_mode === 'transactions' && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>avec transactions</span>}
                 </div>
-                <span className={`badge badge-${a.category}`}>{CATEGORY_LABELS[a.category]}</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted)' }}>{a.isin ?? a.ticker ?? '–'}</span>
-                <span style={{ textAlign: 'right', color: 'var(--muted)', filter: privacy ? 'blur(5px)' : 'none' }}>
+                <span className={`badge badge-${a.category}`} style={{ fontSize: mobile ? 9 : 10 }}>{CATEGORY_LABELS[a.category]}</span>
+                {!mobile && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted)' }}>{a.isin ?? a.ticker ?? '–'}</span>}
+                {!mobile && <span style={{ textAlign: 'right', color: 'var(--muted)', filter: privacy ? 'blur(5px)' : 'none' }}>
                   {a.livret_mode === 'balance'
                     ? `${(a.livret_balance ?? 0).toLocaleString('fr-FR')} €`
                     : (a as any).prices?.price ? `${(a as any).prices.price.toFixed(2)} €` : '–'
                   }
-                </span>
+                </span>}
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                   <button onClick={() => { setEditAsset(a); setShowAssetModal(true) }} style={iconBtn}><Pencil size={13} /></button>
                   <button onClick={() => deleteAsset(a.id)} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={13} /></button>
