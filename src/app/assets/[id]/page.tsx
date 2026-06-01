@@ -21,6 +21,14 @@ export default function AssetDetailPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [showModal, setShowModal] = useState(false)
   const [editTx, setEditTx] = useState<any>(null)
+  const [mobile, setMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   async function loadData() {
     const [{ data: ast }, { data: txs }] = await Promise.all([
@@ -81,7 +89,7 @@ export default function AssetDetailPage() {
         </div>
 
         {/* KPIs */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 10, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: mobile ? 'repeat(2, 1fr)' : 'repeat(3, minmax(0,1fr))', gap: 10, marginBottom: 16 }}>
           {[
             { label: 'Valeur actuelle', value: formatEur(currentValue), sub: `${quantity.toFixed(4)} parts · ${formatEur(currentPrice)}/u` },
             { label: 'Plus-value latente', value: formatEur(pnl), sub: formatPct(pnlPct), color: pnl >= 0 },
@@ -89,7 +97,7 @@ export default function AssetDetailPage() {
           ].map(({ label, value, sub, color }) => (
             <div key={label} style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
               <p style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 7 }}>{label}</p>
-              <p style={{ fontSize: 20, fontWeight: 500, filter: privacy ? 'blur(7px)' : 'none' }}>{value}</p>
+              <p style={{ fontSize: mobile ? 16 : 20, fontWeight: 500, filter: privacy ? 'blur(7px)' : 'none' }}>{value}</p>
               {sub && <p style={{ fontSize: 11, marginTop: 4, color: color === undefined ? 'var(--muted)' : color ? 'var(--green)' : 'var(--red)' }}>{sub}</p>}
             </div>
           ))}

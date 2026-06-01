@@ -37,6 +37,14 @@ export default function LivretPage() {
   const [modalType, setModalType] = useState<'achat' | 'vente' | 'interets'>('achat')
   const [editRate, setEditRate] = useState(false)
   const [newRate, setNewRate] = useState('')
+  const [mobile, setMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   async function loadData() {
     const { data: acc } = await supabase.from('accounts').select('*').eq('id', id).single()
@@ -117,10 +125,10 @@ export default function LivretPage() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 1fr' : 'repeat(3, minmax(0,1fr))', gap: 10 }}>
           <div style={card}>
             <p style={lbl}>Solde actuel</p>
-            <p style={{ fontSize: 22, fontWeight: 500, filter: privacy ? 'blur(7px)' : 'none' }}>{fmt(solde)}</p>
+            <p style={{ fontSize: mobile ? 17 : 22, fontWeight: 500, filter: privacy ? 'blur(7px)' : 'none' }}>{fmt(solde)}</p>
           </div>
           <div style={card}>
             <p style={lbl}>Taux annuel</p>
@@ -134,7 +142,7 @@ export default function LivretPage() {
                 </>
               ) : (
                 <>
-                  <p style={{ fontSize: 22, fontWeight: 500 }}>{taux} %</p>
+                  <p style={{ fontSize: mobile ? 17 : 22, fontWeight: 500 }}>{taux} %</p>
                   <button onClick={() => setEditRate(true)} style={{ fontSize: 11, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}>modifier</button>
                 </>
               )}
@@ -142,7 +150,7 @@ export default function LivretPage() {
           </div>
           <div style={card}>
             <p style={lbl}>Intérêts estimés {today.getFullYear()}</p>
-            <p style={{ fontSize: 22, fontWeight: 500, color: '#1D9E75', filter: privacy ? 'blur(7px)' : 'none' }}>{fmt(interetsAnnee)}</p>
+            <p style={{ fontSize: mobile ? 17 : 22, fontWeight: 500, color: '#1D9E75', filter: privacy ? 'blur(7px)' : 'none' }}>{fmt(interetsAnnee)}</p>
           </div>
         </div>
 
