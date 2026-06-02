@@ -77,11 +77,11 @@ export default function AssetsPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h1 style={{ fontSize: 18, fontWeight: 500 }}>Banques & Comptes</h1>
             <div style={{ display: 'flex', gap: 8 }}>
-              {!mobile && <button onClick={() => { setEditBank(null); setShowBankModal(true) }} style={{ ...btnStyle, background: 'var(--surface)', color: 'var(--text)', border: '0.5px solid var(--border)' }}>
-                <Plus size={14} /> Nouvelle banque
-              </button>}
+              <button onClick={() => { setEditBank(null); setShowBankModal(true) }} style={{ ...btnStyle, background: 'var(--surface)', color: 'var(--text)', border: '0.5px solid var(--border)' }}>
+                <Plus size={14} /> {mobile ? 'Banque' : 'Nouvelle banque'}
+              </button>
               <button onClick={() => { setEditAccount(null); setShowAccountModal(true) }} style={btnStyle}>
-                <Plus size={14} /> Nouveau compte
+                <Plus size={14} /> {mobile ? 'Compte' : 'Nouveau compte'}
               </button>
             </div>
           </div>

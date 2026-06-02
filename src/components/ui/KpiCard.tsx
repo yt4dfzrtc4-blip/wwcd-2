@@ -3,11 +3,11 @@ interface KpiCardProps {
   value: string
   sub?: string
   subColor?: 'gain' | 'loss' | 'neutral'
-  private?: boolean
   hidden?: boolean
+  subHidden?: boolean
 }
 
-export default function KpiCard({ label, value, sub, subColor = 'neutral', hidden }: KpiCardProps) {
+export default function KpiCard({ label, value, sub, subColor = 'neutral', hidden, subHidden }: KpiCardProps) {
   const subColors = { gain: 'var(--green)', loss: 'var(--red)', neutral: 'var(--muted)' }
 
   return (
@@ -32,7 +32,13 @@ export default function KpiCard({ label, value, sub, subColor = 'neutral', hidde
         {value}
       </p>
       {sub && (
-        <p style={{ fontSize: 11, marginTop: 5, color: subColors[subColor] }}>
+        <p style={{
+          fontSize: 11, marginTop: 5,
+          color: subColors[subColor],
+          filter: subHidden ? 'blur(5px)' : 'none',
+          userSelect: subHidden ? 'none' : 'auto',
+          transition: 'filter 0.2s',
+        }}>
           {sub}
         </p>
       )}
