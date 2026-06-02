@@ -57,9 +57,10 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
         zIndex: 200,
       }}>
         {/* Logo */}
-        <span style={{
+        <span onClick={() => router.push('/dashboard')} style={{
           fontSize: 15, fontWeight: 500, color: 'var(--brand)',
           letterSpacing: '0.06em', marginRight: mobile ? 'auto' : 32, flexShrink: 0,
+          cursor: 'pointer',
         }}>
           WWCD
         </span>
