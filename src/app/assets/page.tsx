@@ -254,6 +254,7 @@ function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; a
     name: account?.name ?? '',
     type: account?.type ?? 'pea',
     bank_id: (account as any)?.bank_id ?? '',
+    customType: '',
   })
   const [loading, setLoading] = useState(false)
 
@@ -262,7 +263,8 @@ function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; a
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const payload = { name: form.name, type: form.type, bank_id: form.bank_id || null }
+    const finalType = form.type === 'autre' && form.customType ? form.customType.toLowerCase().replace(/\s+/g, '_') : form.type
+    const payload = { name: form.name, type: finalType, bank_id: form.bank_id || null }
     if (account?.id) {
       await supabase.from('accounts').update(payload).eq('id', account.id)
     } else {
@@ -284,10 +286,15 @@ function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; a
           <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required placeholder="Ex : PEA, Livret A, Crypto…" style={inp} />
         </Field>
         <Field label="Type">
-          <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as any }))} style={inp}>
-            {[['pea','PEA'],['cto','Compte-titres'],['crypto','Crypto'],['livret','Livret'],['cat','CAT'],['per','PER'],['or','Or'],['obligations','Obligations'],['autre','Autre']].map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+          <select value={['pea','cto','crypto','livret','cat','per','or','obligations','autre'].includes(form.type) ? form.type : 'autre'} onChange={e => setForm(f => ({ ...f, type: e.target.value as any }))} style={inp}>
+            {[['pea','PEA'],['cto','Compte-titres'],['crypto','Crypto'],['livret','Livret'],['cat','CAT'],['per','PER'],['or','Or'],['obligations','Obligations'],['autre','Autre (personnalisé)']].map(([k,v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Field>
+        {form.type === 'autre' && (
+          <Field label="Type personnalisé">
+            <input value={form.customType ?? ''} onChange={e => setForm(f => ({ ...f, customType: e.target.value }))} placeholder="Ex : SCPI, Crowdfunding…" style={inp} />
+          </Field>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
           <button type="button" onClick={onClose} style={cancelBtn}>Annuler</button>
           <button type="submit" disabled={loading} style={submitBtn}>{loading ? '…' : account ? 'Modifier' : 'Créer'}</button>
@@ -352,10 +359,16 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
           <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required placeholder="Ex: MSCI World, Livret A…" style={inp} />
         </Field>
         <Field label="Catégorie">
-          <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as any }))} style={inp}>
+          <select value={Object.keys(CATEGORY_LABELS).includes(form.category) ? form.category : 'autre'} onChange={e => setForm(f => ({ ...f, category: e.target.value as any }))} style={inp}>
             {Object.entries(CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            <option value="autre">Autre (personnalisé)</option>
           </select>
         </Field>
+        {form.category === 'autre' && (
+          <Field label="Catégorie personnalisée">
+            <input value={(form as any).customCategory ?? ''} onChange={e => setForm(f => ({ ...f, customCategory: e.target.value } as any))} placeholder="Ex : SCPI, Forêt, Crypto-staking…" style={inp} />
+          </Field>
+        )}
         {showLivretOptions && (
           <Field label="Mode de gestion">
             <select value={form.livret_mode} onChange={e => setForm(f => ({ ...f, livret_mode: e.target.value as LivretMode }))} style={inp}>
