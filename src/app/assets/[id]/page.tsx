@@ -103,6 +103,43 @@ export default function AssetDetailPage() {
           ))}
         </div>
 
+        {/* Simulation obligation */}
+        {asset.category === 'obligation' && (() => {
+          const coupon = (asset as any).obligation_coupon ?? 0
+          const nominal = (asset as any).obligation_nominal ?? 0
+          const frequency = (asset as any).obligation_frequency ?? 'annuelle'
+          const maturityStr = (asset as any).obligation_maturity
+          const maturity = maturityStr ? new Date(maturityStr) : null
+          const today = new Date()
+          const joursRestants = maturity ? Math.max(0, Math.floor((maturity.getTime() - today.getTime()) / 86400000)) : null
+          const couponAnnuel = nominal * (coupon / 100)
+          const freqMap: Record<string, string> = { annuelle: 'an', semestrielle: '6 mois', trimestrielle: '3 mois' }
+          const couponPeriode = frequency === 'semestrielle' ? couponAnnuel / 2 : frequency === 'trimestrielle' ? couponAnnuel / 4 : couponAnnuel
+
+          return (
+            <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+              <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+                Simulation obligation
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: '0 32px' }}>
+                {[
+                  ['Nominal', nominal ? formatEur(nominal) : '–'],
+                  ['Taux coupon', coupon ? `${coupon} %` : '–'],
+                  [`Coupon / ${freqMap[frequency] ?? 'an'}`, couponPeriode ? formatEur(couponPeriode) : '–'],
+                  ['Fréquence', frequency.charAt(0).toUpperCase() + frequency.slice(1)],
+                  ['Échéance', maturityStr ? new Date(maturityStr).toLocaleDateString('fr-FR') : '–'],
+                  ['Jours restants', joursRestants !== null ? `${joursRestants} j` : '–'],
+                ].map(([k, v]) => (
+                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '0.5px solid var(--border)', fontSize: 13 }}>
+                    <span style={{ color: 'var(--muted)' }}>{k}</span>
+                    <span style={{ fontWeight: 500 }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Fiche */}
         <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
           <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>

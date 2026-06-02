@@ -308,9 +308,14 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
     livret_mode: asset?.livret_mode ?? 'auto',
     livret_balance: asset?.livret_balance?.toString() ?? '0',
     livret_rate: asset?.livret_rate?.toString() ?? '0',
+    obligation_coupon: (asset as any)?.obligation_coupon?.toString() ?? '',
+    obligation_frequency: (asset as any)?.obligation_frequency ?? 'annuelle',
+    obligation_maturity: (asset as any)?.obligation_maturity ?? '',
+    obligation_nominal: (asset as any)?.obligation_nominal?.toString() ?? '',
   })
   const [loading, setLoading] = useState(false)
   const showLivretOptions = ['livret', 'cat', 'per', 'or'].includes(form.category)
+  const showObligationOptions = form.category === 'obligation'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -327,6 +332,10 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
       livret_mode: showLivretOptions ? form.livret_mode : 'auto',
       livret_balance: showLivretOptions && form.livret_mode === 'balance' ? parseFloat(form.livret_balance) : null,
       livret_rate: showLivretOptions ? parseFloat(form.livret_rate) : null,
+      obligation_coupon: showObligationOptions && form.obligation_coupon ? parseFloat(form.obligation_coupon) : null,
+      obligation_frequency: showObligationOptions ? form.obligation_frequency : null,
+      obligation_maturity: showObligationOptions && form.obligation_maturity ? form.obligation_maturity : null,
+      obligation_nominal: showObligationOptions && form.obligation_nominal ? parseFloat(form.obligation_nominal) : null,
     }
     if (asset?.id) {
       await supabase.from('assets').update(payload).eq('id', asset.id)
@@ -366,12 +375,31 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
             </Field>
           </div>
         )}
-        {!showLivretOptions && (
+        {!showLivretOptions && !showObligationOptions && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <Field label="ISIN (optionnel)"><input value={form.isin} onChange={e => setForm(f => ({ ...f, isin: e.target.value }))} placeholder="FR0011869353" style={inp} /></Field>
             <Field label="Ticker (optionnel)"><input value={form.ticker} onChange={e => setForm(f => ({ ...f, ticker: e.target.value }))} placeholder="CW8.PA" style={inp} /></Field>
           </div>
         )}
+        {showObligationOptions && (<>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <Field label="ISIN (optionnel)"><input value={form.isin} onChange={e => setForm(f => ({ ...f, isin: e.target.value }))} placeholder="FR0011869353" style={inp} /></Field>
+            <Field label="Nominal (€)"><input type="number" step="0.01" value={form.obligation_nominal} onChange={e => setForm(f => ({ ...f, obligation_nominal: e.target.value }))} placeholder="1000" style={inp} /></Field>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <Field label="Taux coupon (%)"><input type="number" step="0.01" value={form.obligation_coupon} onChange={e => setForm(f => ({ ...f, obligation_coupon: e.target.value }))} placeholder="3.5" style={inp} /></Field>
+            <Field label="Fréquence">
+              <select value={form.obligation_frequency} onChange={e => setForm(f => ({ ...f, obligation_frequency: e.target.value }))} style={inp}>
+                <option value="annuelle">Annuelle</option>
+                <option value="semestrielle">Semestrielle</option>
+                <option value="trimestrielle">Trimestrielle</option>
+              </select>
+            </Field>
+          </div>
+          <Field label="Date d&apos;échéance">
+            <input type="date" value={form.obligation_maturity} onChange={e => setForm(f => ({ ...f, obligation_maturity: e.target.value }))} style={inp} />
+          </Field>
+        </>)}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
           <button type="button" onClick={onClose} style={cancelBtn}>Annuler</button>
           <button type="submit" disabled={loading} style={submitBtn}>{loading ? '…' : asset ? 'Modifier' : 'Créer'}</button>
