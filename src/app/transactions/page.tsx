@@ -6,7 +6,7 @@ import { formatEur, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfo
 import type { Transaction } from '@/types'
 import Topbar from '@/components/layout/Topbar'
 import TransactionModal from '@/components/ui/TransactionModal'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -43,6 +43,32 @@ export default function TransactionsPage() {
     loadData()
   }
 
+  function exportCSV() {
+    const header = ['Date', 'Type', 'Actif', 'Catégorie', 'Compte', 'Quantité', 'Prix unitaire', 'Total']
+    const rows = transactions.map(tx => {
+      const asset = (tx as any).asset
+      const account = (tx as any).account
+      return [
+        tx.date,
+        tx.type === 'achat' ? 'Achat' : 'Vente',
+        asset?.name ?? '',
+        asset?.category ?? '',
+        account?.name ?? '',
+        tx.quantity.toString(),
+        tx.price.toString(),
+        (tx.quantity * tx.price).toFixed(2),
+      ]
+    })
+    const csv = [header, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `wwcd-transactions-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const cols = mobile
     ? '80px 1fr 80px 50px'
     : '95px 60px 1fr 90px 90px 90px 60px'
@@ -54,18 +80,31 @@ export default function TransactionsPage() {
       <main style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h1 style={{ fontSize: 18, fontWeight: 500 }}>Transactions</h1>
-          <button
-            onClick={() => { setEditTx(null); setShowModal(true) }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 14px', borderRadius: 8,
-              background: 'var(--brand)', color: '#fff',
-              border: 'none', fontSize: 13, fontWeight: 500,
-              cursor: 'pointer', fontFamily: 'var(--font-sans)',
-            }}
-          >
-            <Plus size={15} /> {mobile ? 'Ajouter' : 'Nouvelle transaction'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {transactions.length > 0 && (
+              <button onClick={exportCSV} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 12px', borderRadius: 8,
+                background: 'var(--surface)', color: 'var(--muted)',
+                border: '0.5px solid var(--border)', fontSize: 13,
+                cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              }}>
+                <Download size={14} /> {!mobile && 'Export CSV'}
+              </button>
+            )}
+            <button
+              onClick={() => { setEditTx(null); setShowModal(true) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', borderRadius: 8,
+                background: 'var(--brand)', color: '#fff',
+                border: 'none', fontSize: 13, fontWeight: 500,
+                cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              }}
+            >
+              <Plus size={15} /> {mobile ? 'Ajouter' : 'Nouvelle transaction'}
+            </button>
+          </div>
         </div>
 
         <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
