@@ -155,7 +155,7 @@ export default function AssetDetailPage() {
             ].map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '0.5px solid var(--border)', fontSize: 13 }}>
                 <span style={{ color: 'var(--muted)' }}>{k}</span>
-                <span style={{ fontWeight: 500, filter: privacy && k !== 'PRU moyen' && k !== 'Cours actuel' && k !== 'Quantité' ? 'blur(5px)' : 'none' }}>{v}</span>
+                <span style={{ fontWeight: 500, filter: privacy && k !== 'Cours actuel' && k !== 'Quantité' ? 'blur(5px)' : 'none' }}>{v}</span>
               </div>
             ))}
           </div>

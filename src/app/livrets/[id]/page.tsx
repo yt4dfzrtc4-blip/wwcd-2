@@ -143,7 +143,7 @@ export default function LivretPage() {
                 </>
               ) : (
                 <>
-                  <p style={{ fontSize: mobile ? 17 : 22, fontWeight: 500 }}>{taux} %</p>
+                  <p style={{ fontSize: mobile ? 17 : 22, fontWeight: 500, filter: privacy ? 'blur(7px)' : 'none' }}>{taux} %</p>
                   <button onClick={() => setEditRate(true)} style={{ fontSize: 11, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}>modifier</button>
                 </>
               )}
