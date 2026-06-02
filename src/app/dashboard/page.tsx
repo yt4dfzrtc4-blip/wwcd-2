@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { buildPositions, buildPortfolioSummary, formatEur, formatPct, CATEGORY_LABELS } from '@/lib/portfolio'
+import { buildPositions, buildPortfolioSummary, formatEur, formatPct, CATEGORY_LABELS, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfolio'
 import type { PortfolioSummary, Snapshot, Position } from '@/types'
 import Topbar from '@/components/layout/Topbar'
 import KpiCard from '@/components/ui/KpiCard'
@@ -225,7 +225,7 @@ function PositionRow({ pos, hidden, mobile, onClick }: { pos: Position; hidden: 
         <p style={{ fontSize: 11, color: isGain ? 'var(--green)' : 'var(--red)' }}>{formatPct(pos.pnl_pct)}</p>
       </div>
       {!mobile && <div style={{ textAlign: 'right' }}>
-        <span className={`badge badge-${pos.asset.category}`}>{CATEGORY_LABELS[pos.asset.category] ?? pos.asset.category}</span>
+        <span className={`badge ${getCategoryBadgeClass(pos.asset.category)}`}>{getCategoryLabel(pos.asset.category)}</span>
       </div>}
       {!mobile && <ChevronRight size={14} color="var(--muted)" />}
     </div>

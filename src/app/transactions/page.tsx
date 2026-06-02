@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatEur, CATEGORY_LABELS } from '@/lib/portfolio'
+import { formatEur, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfolio'
 import type { Transaction } from '@/types'
 import Topbar from '@/components/layout/Topbar'
 import TransactionModal from '@/components/ui/TransactionModal'
@@ -122,7 +122,7 @@ export default function TransactionsPage() {
                     <p style={{ fontSize: 10, color: mobile ? (tx.type === 'achat' ? 'var(--green)' : 'var(--red)') : 'var(--muted)' }}>
                       {mobile
                         ? (tx.type === 'achat' ? 'Achat' : 'Vente')
-                        : <>{account?.name} · <span className={`badge badge-${asset?.category}`}>{CATEGORY_LABELS[asset?.category] ?? ''}</span></>
+                        : <>{account?.name} · <span className={`badge ${asset?.category ? getCategoryBadgeClass(asset.category) : ''}`}>{asset?.category ? getCategoryLabel(asset.category) : ''}</span></>
                       }
                     </p>
                   </div>

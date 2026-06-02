@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Asset, Account, Bank, AssetCategory, LivretMode } from '@/types'
 import Topbar from '@/components/layout/Topbar'
-import { CATEGORY_LABELS } from '@/lib/portfolio'
+import { CATEGORY_LABELS, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfolio'
 import { Plus, Pencil, Trash2, X, ChevronDown, ChevronRight } from 'lucide-react'
 
 export default function AssetsPage() {
@@ -160,7 +160,7 @@ export default function AssetsPage() {
                   {!mobile && a.livret_mode === 'balance' && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>solde simple</span>}
                   {!mobile && a.livret_mode === 'transactions' && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>avec transactions</span>}
                 </div>
-                <span className={`badge badge-${a.category}`} style={{ fontSize: mobile ? 9 : 10 }}>{CATEGORY_LABELS[a.category]}</span>
+                <span className={`badge ${getCategoryBadgeClass(a.category)}`} style={{ fontSize: mobile ? 9 : 10 }}>{getCategoryLabel(a.category)}</span>
                 {!mobile && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted)' }}>{a.isin ?? a.ticker ?? '–'}</span>}
                 {!mobile && <span style={{ textAlign: 'right', color: 'var(--muted)', filter: privacy ? 'blur(5px)' : 'none' }}>
                   {a.livret_mode === 'balance'
@@ -306,9 +306,12 @@ function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; a
 
 function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClose: () => void; onSuccess: () => void }) {
   const supabase = createClient()
+  const predefinedCategories = ['action','etf','crypto','obligation','livret','cat','per','or','autre']
+  const assetCategoryIsCustom = asset?.category && !predefinedCategories.includes(asset.category)
   const [form, setForm] = useState({
     name: asset?.name ?? '',
-    category: asset?.category ?? 'etf',
+    category: assetCategoryIsCustom ? 'autre' : (asset?.category ?? 'etf'),
+    customCategory: assetCategoryIsCustom ? asset!.category : '',
     isin: asset?.isin ?? '',
     ticker: asset?.ticker ?? '',
     currency: asset?.currency ?? 'EUR',
@@ -329,9 +332,12 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    const finalCategory = form.category === 'autre' && form.customCategory.trim()
+      ? form.customCategory.trim().toLowerCase()
+      : form.category
     const payload = {
       name: form.name,
-      category: form.category,
+      category: finalCategory,
       isin: form.isin || null,
       ticker: form.ticker || null,
       currency: form.currency,

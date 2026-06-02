@@ -167,6 +167,18 @@ export const CATEGORY_LABELS: Record<string, string> = {
   autre: 'Autre',
 }
 
+export function getCategoryLabel(category: string): string {
+  return CATEGORY_LABELS[category] ?? category.charAt(0).toUpperCase() + category.slice(1)
+}
+
+export function getCategoryColor(category: string): string {
+  return CATEGORY_COLORS[category] ?? '#B4B2A9'
+}
+
+export function getCategoryBadgeClass(category: string): string {
+  return CATEGORY_LABELS[category] ? `badge-${category}` : 'badge-autre'
+}
+
 export const CATEGORY_COLORS: Record<string, string> = {
   etf:        '#534AB7',
   action:     '#378ADD',
