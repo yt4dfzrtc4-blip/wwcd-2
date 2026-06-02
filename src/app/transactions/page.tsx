@@ -6,7 +6,7 @@ import { formatEur, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfo
 import type { Transaction } from '@/types'
 import Topbar from '@/components/layout/Topbar'
 import TransactionModal from '@/components/ui/TransactionModal'
-import { Plus, Pencil, Trash2, Download } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, Upload } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -18,6 +18,8 @@ export default function TransactionsPage() {
   const [editTx, setEditTx] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [mobile, setMobile] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ ok: number; errors: string[] } | null>(null)
 
   useEffect(() => {
     const check = () => setMobile(window.innerWidth < 640)
@@ -41,6 +43,60 @@ export default function TransactionsPage() {
     if (!confirm('Supprimer cette transaction ?')) return
     await supabase.from('transactions').delete().eq('id', id)
     loadData()
+  }
+
+  async function importCSV(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    setImportResult(null)
+
+    const text = await file.text()
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+    // Ignorer l'en-tête
+    const dataLines = lines.slice(1)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    // Charger actifs et comptes pour matcher par nom
+    const [{ data: assets }, { data: accounts }] = await Promise.all([
+      supabase.from('assets').select('id, name').eq('user_id', user.id),
+      supabase.from('accounts').select('id, name').eq('user_id', user.id),
+    ])
+
+    let ok = 0
+    const errors: string[] = []
+
+    for (const line of dataLines) {
+      // Parser CSV (valeurs entre guillemets)
+      const cols = line.match(/"([^"]*)"/g)?.map(v => v.replace(/"/g, '')) ?? line.split(',')
+      const [date, type, assetName, , accountName, qty, price] = cols
+
+      const asset = assets?.find(a => a.name.toLowerCase() === assetName?.toLowerCase())
+      const account = accounts?.find(a => a.name.toLowerCase() === accountName?.toLowerCase())
+
+      if (!asset) { errors.push(`Actif introuvable : "${assetName}" (ligne ignorée)`); continue }
+      if (!account) { errors.push(`Compte introuvable : "${accountName}" (ligne ignorée)`); continue }
+      if (!date || !qty || !price) { errors.push(`Données manquantes ligne : ${line}`); continue }
+
+      const { error } = await supabase.from('transactions').insert({
+        user_id: user.id,
+        asset_id: asset.id,
+        account_id: account.id,
+        type: type?.toLowerCase() === 'achat' ? 'achat' : 'vente',
+        date,
+        quantity: parseFloat(qty),
+        price: parseFloat(price),
+      })
+      if (error) errors.push(`Erreur : ${error.message}`)
+      else ok++
+    }
+
+    setImportResult({ ok, errors })
+    setImporting(false)
+    e.target.value = ''
+    if (ok > 0) loadData()
   }
 
   function exportCSV() {
@@ -81,6 +137,16 @@ export default function TransactionsPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h1 style={{ fontSize: 18, fontWeight: 500 }}>Transactions</h1>
           <div style={{ display: 'flex', gap: 8 }}>
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 12px', borderRadius: 8,
+              background: 'var(--surface)', color: importing ? 'var(--brand)' : 'var(--muted)',
+              border: '0.5px solid var(--border)', fontSize: 13,
+              cursor: 'pointer', fontFamily: 'var(--font-sans)',
+            }}>
+              <Upload size={14} /> {!mobile && (importing ? 'Import…' : 'Import CSV')}
+              <input type="file" accept=".csv" onChange={importCSV} style={{ display: 'none' }} />
+            </label>
             {transactions.length > 0 && (
               <button onClick={exportCSV} style={{
                 display: 'flex', alignItems: 'center', gap: 6,
@@ -106,6 +172,18 @@ export default function TransactionsPage() {
             </button>
           </div>
         </div>
+
+        {importResult && (
+          <div style={{ background: importResult.errors.length ? '#FAEEDA' : '#E1F5EE', border: `0.5px solid ${importResult.errors.length ? '#EF9F27' : '#1D9E75'}`, borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13 }}>
+            <p style={{ fontWeight: 500, color: importResult.errors.length ? '#633806' : '#085041' }}>
+              ✓ {importResult.ok} transaction{importResult.ok > 1 ? 's' : ''} importée{importResult.ok > 1 ? 's' : ''}
+              {importResult.errors.length > 0 && ` · ${importResult.errors.length} erreur${importResult.errors.length > 1 ? 's' : ''}`}
+            </p>
+            {importResult.errors.map((e, i) => (
+              <p key={i} style={{ fontSize: 11, color: '#633806', marginTop: 4 }}>{e}</p>
+            ))}
+          </div>
+        )}
 
         <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
           {/* En-tête */}
