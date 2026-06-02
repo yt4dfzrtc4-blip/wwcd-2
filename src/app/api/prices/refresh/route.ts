@@ -7,7 +7,7 @@ async function fetchYahooPrice(ticker: string): Promise<{ price: number; change_
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2d`
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
-      next: { revalidate: 3600 },
+      cache: 'no-store',
     })
     if (!res.ok) return null
     const data = await res.json()
@@ -25,7 +25,7 @@ async function fetchYahooPrice(ticker: string): Promise<{ price: number; change_
 async function fetchCoinGeckoPrice(coinId: string): Promise<{ price: number; change_pct: number } | null> {
   try {
     const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=eur&include_24hr_change=true`
-    const res = await fetch(url, { next: { revalidate: 3600 } })
+    const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) return null
     const data = await res.json()
     const coin = data[coinId]
@@ -37,8 +37,8 @@ async function fetchCoinGeckoPrice(coinId: string): Promise<{ price: number; cha
 }
 
 async function refreshPrices(supabase: ReturnType<typeof createServiceClient>, userId?: string) {
-  const query = supabase.from('assets').select('id, ticker, category, user_id')
-  if (userId) query.eq('user_id', userId)
+  let query = supabase.from('assets').select('id, ticker, category, user_id')
+  if (userId) query = query.eq('user_id', userId)
 
   const { data: assets } = await query
 
