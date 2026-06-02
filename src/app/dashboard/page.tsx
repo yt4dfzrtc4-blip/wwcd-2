@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false)
   const [loading, setLoading] = useState(true)
   const [mobile, setMobile] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
 
   useEffect(() => {
     const check = () => setMobile(window.innerWidth < 640)
@@ -33,11 +34,12 @@ export default function DashboardPage() {
   }, [])
 
   const loadData = useCallback(async () => {
-    const [{ data: transactions }, { data: assets }, { data: accounts }, { data: snaps }] = await Promise.all([
+    const [{ data: transactions }, { data: assets }, { data: accounts }, { data: snaps }, { data: prices }] = await Promise.all([
       supabase.from('transactions').select('*, asset:assets(*, prices(*)), account:accounts(*, bank:banks(*))'),
       supabase.from('assets').select('*, prices(*)'),
       supabase.from('accounts').select('*, bank:banks(*)'),
       supabase.from('snapshots').select('*').order('date', { ascending: true }).limit(365),
+      supabase.from('prices').select('updated_at').order('updated_at', { ascending: false }).limit(1),
     ])
 
     if (transactions && assets && accounts) {
@@ -72,6 +74,10 @@ export default function DashboardPage() {
       setByBank(Object.values(bankMap).sort((a, b) => b.value - a.value))
     }
     setSnapshots((snaps ?? []) as Snapshot[])
+    if (prices?.[0]?.updated_at) {
+      const d = new Date(prices[0].updated_at)
+      setLastUpdated(`${d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`)
+    }
     setLoading(false)
   }, [])
 
@@ -110,6 +116,12 @@ export default function DashboardPage() {
           <KpiCard label="Performance globale" value={s ? formatPct(s.total_pnl_pct) : '–'} subColor={s && s.total_pnl_pct >= 0 ? 'gain' : 'loss'} hidden={privacy} />
           <KpiCard label="Variation du jour" value={s ? formatEur(s.day_change, 0) : '–'} sub={s ? formatPct(s.day_change_pct) : undefined} subColor={s && s.day_change >= 0 ? 'gain' : 'loss'} hidden={privacy} />
         </div>
+
+        {lastUpdated && (
+          <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, marginTop: -8 }}>
+            Cours mis à jour le {lastUpdated}
+          </p>
+        )}
 
         {/* Graphiques */}
         <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 16 }}>
