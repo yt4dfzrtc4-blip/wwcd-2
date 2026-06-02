@@ -156,9 +156,17 @@ export default function AssetsPage() {
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
                 <div>
-                  <span style={{ fontWeight: 500, fontSize: mobile ? 12 : 13 }}>{a.name}</span>
-                  {!mobile && a.livret_mode === 'balance' && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>solde simple</span>}
-                  {!mobile && a.livret_mode === 'transactions' && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>avec transactions</span>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontWeight: 500, fontSize: mobile ? 12 : 13 }}>{a.name}</span>
+                    {['action','etf','crypto'].includes(a.category) && !a.ticker && (
+                      <span title="Ticker manquant — cours non récupéré automatiquement" style={{
+                        fontSize: 10, background: '#FAEEDA', color: '#633806',
+                        padding: '1px 6px', borderRadius: 4, fontWeight: 500,
+                      }}>sans cours</span>
+                    )}
+                  </div>
+                  {!mobile && a.livret_mode === 'balance' && <span style={{ fontSize: 11, color: 'var(--muted)' }}>solde simple</span>}
+                  {!mobile && a.livret_mode === 'transactions' && <span style={{ fontSize: 11, color: 'var(--muted)' }}>avec transactions</span>}
                 </div>
                 <span className={`badge ${getCategoryBadgeClass(a.category)}`} style={{ fontSize: mobile ? 9 : 10 }}>{getCategoryLabel(a.category)}</span>
                 {!mobile && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted)' }}>{a.isin ?? a.ticker ?? '–'}</span>}
