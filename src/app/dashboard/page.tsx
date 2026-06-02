@@ -94,10 +94,7 @@ export default function DashboardPage() {
 
   async function handleRefresh() {
     setRefreshing(true)
-    const res = await fetch('/api/prices/refresh', { method: 'POST' })
-    const json = await res.json()
-    console.log('Refresh result:', json)
-    alert(`Refresh: ${JSON.stringify(json)}`)
+    await fetch('/api/prices/refresh', { method: 'POST' })
     await loadData()
     setRefreshing(false)
   }
