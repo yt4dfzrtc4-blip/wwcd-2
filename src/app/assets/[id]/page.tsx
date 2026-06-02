@@ -92,7 +92,7 @@ export default function AssetDetailPage() {
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: mobile ? 'repeat(2, 1fr)' : 'repeat(3, minmax(0,1fr))', gap: 10, marginBottom: 16 }}>
           {[
-            { label: 'Valeur actuelle', value: formatEur(currentValue), sub: `${quantity.toFixed(4)} parts · ${formatEur(currentPrice)}/u` },
+            { label: 'Valeur actuelle', value: formatEur(currentValue), sub: privacy ? `${quantity.toFixed(4)} parts` : `${quantity.toFixed(4)} parts · ${formatEur(currentPrice)}/u` },
             { label: 'Plus-value latente', value: formatEur(pnl), sub: formatPct(pnlPct), color: pnl >= 0 },
             { label: 'Variation du jour', value: formatEur(dayChange), sub: formatPct(dayChangePct), color: dayChange >= 0 },
           ].map(({ label, value, sub, color }) => (
@@ -155,7 +155,7 @@ export default function AssetDetailPage() {
             ].map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '0.5px solid var(--border)', fontSize: 13 }}>
                 <span style={{ color: 'var(--muted)' }}>{k}</span>
-                <span style={{ fontWeight: 500, filter: privacy && k !== 'Cours actuel' && k !== 'Quantité' ? 'blur(5px)' : 'none' }}>{v}</span>
+                <span style={{ fontWeight: 500, filter: privacy && k !== 'Quantité' ? 'blur(5px)' : 'none' }}>{v}</span>
               </div>
             ))}
           </div>
