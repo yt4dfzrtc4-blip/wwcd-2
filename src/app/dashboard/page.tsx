@@ -74,7 +74,16 @@ export default function DashboardPage() {
       setByBank(Object.values(bankMap).sort((a, b) => b.value - a.value))
     }
     setSnapshots((snaps ?? []) as Snapshot[])
-    if (prices?.[0]?.updated_at) {
+    // Date de mise à jour : chercher dans les assets déjà chargés
+    const allUpdatedAt = (assets ?? [])
+      .map((a: any) => a.prices?.updated_at)
+      .filter(Boolean)
+      .sort()
+      .reverse()
+    if (allUpdatedAt.length > 0) {
+      const d = new Date(allUpdatedAt[0])
+      setLastUpdated(`${d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`)
+    } else if (prices?.[0]?.updated_at) {
       const d = new Date(prices[0].updated_at)
       setLastUpdated(`${d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`)
     }
@@ -117,11 +126,9 @@ export default function DashboardPage() {
           <KpiCard label="Variation du jour" value={s ? formatEur(s.day_change, 0) : '–'} sub={s ? formatPct(s.day_change_pct) : undefined} subColor={s && s.day_change >= 0 ? 'gain' : 'loss'} hidden={privacy} />
         </div>
 
-        {lastUpdated && (
-          <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, marginTop: -8 }}>
-            Cours mis à jour le {lastUpdated}
-          </p>
-        )}
+        <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12, marginTop: -8 }}>
+          {lastUpdated ? `Cours mis à jour le ${lastUpdated}` : 'Cours non encore récupérés — cliquez sur Actualiser'}
+        </p>
 
         {/* Graphiques */}
         <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 16 }}>
