@@ -1,5 +1,6 @@
 'use client'
 
+import { usePrivacy } from '@/hooks/usePrivacy'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatEur, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfolio'
@@ -13,7 +14,7 @@ import { fr } from 'date-fns/locale'
 export default function TransactionsPage() {
   const supabase = createClient()
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [privacy, setPrivacy] = useState(false)
+  const { privacy, togglePrivacy } = usePrivacy()
   const [showModal, setShowModal] = useState(false)
   const [editTx, setEditTx] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -131,7 +132,7 @@ export default function TransactionsPage() {
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={async () => {}} />
+      <Topbar privacy={privacy} onTogglePrivacy={togglePrivacy} onRefresh={async () => {}} />
 
       <main style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>

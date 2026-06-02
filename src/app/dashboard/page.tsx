@@ -1,5 +1,6 @@
 'use client'
 
+import { usePrivacy } from '@/hooks/usePrivacy'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { buildPositions, buildPortfolioSummary, formatEur, formatPct, CATEGORY_LABELS, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfolio'
@@ -19,7 +20,7 @@ export default function DashboardPage() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [byBank, setByBank] = useState<{ name: string; value: number }[]>([])
   const [byAccount, setByAccount] = useState<{ name: string; bank: string; value: number }[]>([])
-  const [privacy, setPrivacy] = useState(false)
+  const { privacy, togglePrivacy } = usePrivacy()
   const [refreshing, setRefreshing] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -103,7 +104,7 @@ export default function DashboardPage() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh' }}>
-      <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={handleRefresh} refreshing={refreshing} />
+      <Topbar privacy={privacy} onTogglePrivacy={togglePrivacy} onRefresh={handleRefresh} refreshing={refreshing} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'var(--muted)', fontSize: 14 }}>
         Chargement…
       </div>
@@ -114,7 +115,7 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={handleRefresh} refreshing={refreshing} mobile={mobile} />
+      <Topbar privacy={privacy} onTogglePrivacy={togglePrivacy} onRefresh={handleRefresh} refreshing={refreshing} mobile={mobile} />
 
       <main style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 16px' }}>
 

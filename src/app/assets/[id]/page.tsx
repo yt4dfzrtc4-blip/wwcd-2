@@ -1,5 +1,6 @@
 'use client'
 
+import { usePrivacy } from '@/hooks/usePrivacy'
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -15,7 +16,7 @@ export default function AssetDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const supabase = createClient()
-  const [privacy, setPrivacy] = useState(false)
+  const { privacy, togglePrivacy } = usePrivacy()
   const [asset, setAsset] = useState<Asset | null>(null)
   const [account, setAccount] = useState<Account | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -50,7 +51,7 @@ export default function AssetDetailPage() {
 
   if (!asset) return (
     <div style={{ minHeight: '100vh' }}>
-      <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={async () => {}} />
+      <Topbar privacy={privacy} onTogglePrivacy={togglePrivacy} onRefresh={async () => {}} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'var(--muted)', fontSize: 14 }}>
         Chargement…
       </div>
@@ -67,7 +68,7 @@ export default function AssetDetailPage() {
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={async () => {}} />
+      <Topbar privacy={privacy} onTogglePrivacy={togglePrivacy} onRefresh={async () => {}} />
 
       <main style={{ maxWidth: 800, margin: '0 auto', padding: '20px 16px' }}>
 

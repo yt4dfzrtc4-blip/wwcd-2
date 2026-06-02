@@ -1,5 +1,6 @@
 'use client'
 
+import { usePrivacy } from '@/hooks/usePrivacy'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Asset, Account, Bank, AssetCategory, LivretMode } from '@/types'
@@ -12,7 +13,7 @@ export default function AssetsPage() {
   const [assets, setAssets] = useState<Asset[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
   const [banks, setBanks] = useState<Bank[]>([])
-  const [privacy, setPrivacy] = useState(false)
+  const { privacy, togglePrivacy } = usePrivacy()
   const [showAssetModal, setShowAssetModal] = useState(false)
   const [showAccountModal, setShowAccountModal] = useState(false)
   const [showBankModal, setShowBankModal] = useState(false)
@@ -69,7 +70,7 @@ export default function AssetsPage() {
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={async () => {}} />
+      <Topbar privacy={privacy} onTogglePrivacy={togglePrivacy} onRefresh={async () => {}} />
 
       <main style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 

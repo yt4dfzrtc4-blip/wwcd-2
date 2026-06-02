@@ -1,5 +1,6 @@
 'use client'
 
+import { usePrivacy } from '@/hooks/usePrivacy'
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -32,7 +33,7 @@ export default function CatPage() {
   const [account, setAccount] = useState<Account | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [assetId, setAssetId] = useState<string | null>(null)
-  const [privacy, setPrivacy] = useState(false)
+  const { privacy, togglePrivacy } = usePrivacy()
   const [showModal, setShowModal] = useState(false)
   const [editRate, setEditRate] = useState(false)
   const [editMaturity, setEditMaturity] = useState(false)
@@ -98,14 +99,14 @@ export default function CatPage() {
 
   if (!account) return (
     <div style={{ minHeight: '100vh' }}>
-      <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={async () => {}} />
+      <Topbar privacy={privacy} onTogglePrivacy={togglePrivacy} onRefresh={async () => {}} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'var(--muted)', fontSize: 14 }}>Chargement…</div>
     </div>
   )
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      <Topbar privacy={privacy} onTogglePrivacy={() => setPrivacy(p => !p)} onRefresh={async () => {}} />
+      <Topbar privacy={privacy} onTogglePrivacy={togglePrivacy} onRefresh={async () => {}} />
       <main style={{ maxWidth: 750, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         {/* Retour + titre */}
