@@ -56,9 +56,7 @@ export async function POST() {
 
     let priceData: { price: number; change_pct: number } | null = null
 
-    if (asset.category === 'crypto') {
-      priceData = await fetchCoinGeckoPrice(asset.ticker)
-    } else if (['action', 'etf'].includes(asset.category)) {
+    if (['action', 'etf', 'crypto'].includes(asset.category)) {
       priceData = await fetchYahooPrice(asset.ticker)
     }
 
