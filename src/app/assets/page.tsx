@@ -187,6 +187,7 @@ export default function AssetsPage() {
 
 function AccountRow({ acc, onDelete, onEdit }: { acc: Account; onDelete: (id: string) => void; onEdit: () => void }) {
   const isLivret = acc.type === 'livret'
+  const isCat = acc.type === 'cat'
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: 13 }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
@@ -199,6 +200,11 @@ function AccountRow({ acc, onDelete, onEdit }: { acc: Account; onDelete: (id: st
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         {isLivret && (
           <a href={`/livrets/${acc.id}`} style={{ fontSize: 12, color: 'var(--brand)', textDecoration: 'none', padding: '4px 10px', border: '0.5px solid var(--brand)', borderRadius: 6 }}>
+            Gérer
+          </a>
+        )}
+        {isCat && (
+          <a href={`/cat/${acc.id}`} style={{ fontSize: 12, color: 'var(--brand)', textDecoration: 'none', padding: '4px 10px', border: '0.5px solid var(--brand)', borderRadius: 6 }}>
             Gérer
           </a>
         )}
@@ -279,7 +285,7 @@ function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; a
         </Field>
         <Field label="Type">
           <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as any }))} style={inp}>
-            {[['pea','PEA'],['cto','Compte-titres'],['crypto','Crypto'],['livret','Livret'],['per','PER'],['or','Or'],['obligations','Obligations'],['autre','Autre']].map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+            {[['pea','PEA'],['cto','Compte-titres'],['crypto','Crypto'],['livret','Livret'],['cat','CAT'],['per','PER'],['or','Or'],['obligations','Obligations'],['autre','Autre']].map(([k,v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Field>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>

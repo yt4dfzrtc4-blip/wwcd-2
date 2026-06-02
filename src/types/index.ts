@@ -1,4 +1,4 @@
-export type AccountType = 'pea' | 'cto' | 'crypto' | 'livret' | 'per' | 'or' | 'obligations' | 'autre'
+export type AccountType = 'pea' | 'cto' | 'crypto' | 'livret' | 'cat' | 'per' | 'or' | 'obligations' | 'autre'
 export type AssetCategory = 'action' | 'etf' | 'crypto' | 'obligation' | 'livret' | 'cat' | 'per' | 'or' | 'autre'
 export type TransactionType = 'achat' | 'vente'
 export type LivretMode = 'auto' | 'balance' | 'transactions'
