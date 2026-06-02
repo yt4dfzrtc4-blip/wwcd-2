@@ -120,6 +120,13 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
         {/* Actions mobile */}
         {mobile && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button onClick={onRefresh} title="Actualiser les cours" style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36, borderRadius: 7, border: 'none', background: 'transparent',
+              color: 'var(--muted)', cursor: 'pointer',
+            }}>
+              <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+            </button>
             <button onClick={onTogglePrivacy} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 36, height: 36, borderRadius: 7, border: 'none', background: 'transparent',
@@ -175,16 +182,6 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
             })}
 
             <div style={{ borderTop: '0.5px solid var(--border)', marginTop: 8, paddingTop: 8 }}>
-              <button onClick={onRefresh} style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                width: '100%', padding: '12px 12px', borderRadius: 10,
-                border: 'none', background: 'transparent',
-                color: 'var(--muted)', fontSize: 15, cursor: 'pointer',
-                fontFamily: 'var(--font-sans)', marginBottom: 2, textAlign: 'left',
-              }}>
-                <RefreshCw size={18} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                Actualiser les cours
-              </button>
               <button onClick={handleLogout} style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 width: '100%', padding: '12px 12px', borderRadius: 10,
