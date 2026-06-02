@@ -250,11 +250,13 @@ function BankModal({ bank, onClose, onSuccess }: { bank: Bank | null; onClose: (
 
 function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; account: Account | null; onClose: () => void; onSuccess: () => void }) {
   const supabase = createClient()
+  const predefinedTypes = ['pea','cto','crypto','livret','cat','per','or','obligations','autre']
+  const accountTypeIsCustom = account?.type && !predefinedTypes.includes(account.type)
   const [form, setForm] = useState({
     name: account?.name ?? '',
-    type: account?.type ?? 'pea',
+    type: accountTypeIsCustom ? 'autre' : (account?.type ?? 'pea'),
     bank_id: (account as any)?.bank_id ?? '',
-    customType: '',
+    customType: accountTypeIsCustom ? account!.type : '',
   })
   const [loading, setLoading] = useState(false)
 
