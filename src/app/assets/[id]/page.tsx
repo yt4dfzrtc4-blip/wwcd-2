@@ -8,6 +8,7 @@ import { calculatePosition, formatEur, formatPct } from '@/lib/portfolio'
 import type { Asset, Transaction, Account } from '@/types'
 import Topbar from '@/components/layout/Topbar'
 import TransactionModal from '@/components/ui/TransactionModal'
+import PriceChart from '@/components/charts/PriceChart'
 import { ArrowLeft, Plus, Pencil, Trash2 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -103,6 +104,16 @@ export default function AssetDetailPage() {
             </div>
           ))}
         </div>
+
+        {/* Graphique historique */}
+        {asset.ticker && ['action', 'etf', 'crypto'].includes(asset.category) && (
+          <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+            <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+              Évolution du cours
+            </p>
+            <PriceChart ticker={asset.ticker} hidden={privacy} />
+          </div>
+        )}
 
         {/* Simulation obligation */}
         {asset.category === 'obligation' && (() => {
