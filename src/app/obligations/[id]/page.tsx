@@ -7,10 +7,8 @@ import { usePrivacy } from '@/hooks/usePrivacy'
 import Topbar from '@/components/layout/Topbar'
 import PriceChart from '@/components/charts/PriceChart'
 import { ArrowLeft, X, Plus } from 'lucide-react'
-import { format, parseISO, differenceInDays } from 'date-fns'
+import { format, parseISO, differenceInDays, addMonths, addYears, addQuarters } from 'date-fns'
 import { fr } from 'date-fns/locale'
-
-type TxType = 'achat' | 'vente' | 'remboursement' | 'coupon'
 
 interface Asset {
   id: string; name: string; isin?: string; ticker?: string
@@ -19,7 +17,7 @@ interface Asset {
 }
 
 interface Transaction {
-  id: string; type: TxType; quantity: number; price: number; date: string; notes?: string
+  id: string; type: string; quantity: number; price: number; date: string; notes?: string; account_id: string
 }
 
 export default function ObligationPage() {
@@ -30,7 +28,7 @@ export default function ObligationPage() {
   const [asset, setAsset] = useState<Asset | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [showModal, setShowModal] = useState(false)
-  const [modalType, setModalType] = useState<TxType>('achat')
+  const [modalType, setModalType] = useState<'achat' | 'coupon' | 'remboursement'>('achat')
   const [mobile, setMobile] = useState(false)
 
   useEffect(() => {
@@ -44,7 +42,7 @@ export default function ObligationPage() {
   async function loadData() {
     const [{ data: ast }, { data: txs }] = await Promise.all([
       supabase.from('assets').select('*').eq('id', id).single(),
-      supabase.from('transactions').select('*').eq('asset_id', id).order('date', { ascending: false }),
+      supabase.from('transactions').select('*').eq('asset_id', id).order('date', { ascending: true }),
     ])
     if (ast) setAsset(ast as Asset)
     setTransactions((txs ?? []) as Transaction[])
@@ -57,46 +55,71 @@ export default function ObligationPage() {
     </div>
   )
 
-  // Calculs
-  const achats = transactions.filter(t => t.type === 'achat')
-  const ventes = transactions.filter(t => t.type === 'vente')
-  const rembours = transactions.filter(t => t.type === 'remboursement')
-  const coupons = transactions.filter(t => t.type === 'coupon')
-
-  const qtyAchetee = achats.reduce((s, t) => s + t.quantity, 0)
-  const qtyVendue = ventes.reduce((s, t) => s + t.quantity, 0) + rembours.reduce((s, t) => s + t.quantity, 0)
-  const qty = Math.max(0, qtyAchetee - qtyVendue)
-
-  const capitalInvesti = achats.reduce((s, t) => s + t.quantity * t.price, 0)
-    - ventes.reduce((s, t) => s + t.quantity * t.price, 0)
-
-  const couponsPercus = coupons.reduce((s, t) => s + t.quantity * t.price, 0)
-
-  const nominal = asset.obligation_nominal ?? 0
+  // Données de l'obligation
+  const nominal = asset.obligation_nominal ?? 1000
   const taux = asset.obligation_coupon ?? 0
   const freq = asset.obligation_frequency ?? 'annuelle'
   const maturityStr = asset.obligation_maturity
   const maturity = maturityStr ? new Date(maturityStr) : null
   const today = new Date()
-  const joursRestants = maturity ? Math.max(0, differenceInDays(maturity, today)) : null
 
-  const couponAnnuel = nominal * qty * (taux / 100)
+  // Transactions
+  // Achat : quantity = nominal acheté, price = taux d'achat (ex: 0.98 pour 98%)
+  // Coupon : quantity = 1, price = montant du coupon
+  // Remboursement : quantity = nominal remboursé, price = 1 (100%)
+  const achats = transactions.filter(t => t.type === 'achat')
+  const coupons = transactions.filter(t => t.type === 'interets' || t.type === 'coupon')
+  const rembours = transactions.filter(t => t.type === 'vente' || t.type === 'remboursement')
+
+  const nominalAcheté = achats.reduce((s, t) => s + t.quantity, 0)
+  const nominalRemboursé = rembours.reduce((s, t) => s + t.quantity, 0)
+  const nominalDetenu = Math.max(0, nominalAcheté - nominalRemboursé)
+
+  // Coût réel = nominal × prix d'achat
+  const capitalVersé = achats.reduce((s, t) => s + t.quantity * t.price, 0)
+  const couponsPercus = coupons.reduce((s, t) => s + t.quantity * t.price, 0)
+  const remboursementsReçus = rembours.reduce((s, t) => s + t.quantity * t.price, 0)
+
+  // PV latente = nominal détenu - capital versé + remboursements reçus
+  const pvLatente = nominalDetenu + remboursementsReçus - capitalVersé
+  const pvPct = capitalVersé > 0 ? (pvLatente / capitalVersé) * 100 : 0
+
+  // Coupon annuel estimé
+  const couponAnnuel = nominalDetenu * (taux / 100)
   const freqDiv = freq === 'semestrielle' ? 2 : freq === 'trimestrielle' ? 4 : 1
   const couponPeriode = couponAnnuel / freqDiv
-  const freqLabel: Record<string, string> = { annuelle: 'Annuelle', semestrielle: 'Semestrielle', trimestrielle: 'Trimestrielle' }
+  const freqLabel: Record<string, string> = { annuelle: 'annuel', semestrielle: 'semestriel', trimestrielle: 'trimestriel' }
 
-  // Valeur nominale totale restante
-  const valeurNominale = nominal * qty
+  // Jours restants
+  const joursRestants = maturity ? Math.max(0, differenceInDays(maturity, today)) : null
 
-  const fmt = (v: number) => v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
-  const fmtK = (v: number) => v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+  // Rendement actuariel approximatif (YTM simplifié)
+  const anneeRestantes = joursRestants ? joursRestants / 365 : 0
+  const ytm = capitalVersé > 0 && anneeRestantes > 0
+    ? ((couponAnnuel + (nominalDetenu - capitalVersé) / anneeRestantes) / ((nominalDetenu + capitalVersé) / 2)) * 100
+    : 0
 
-  const typeConfig: Record<TxType, { label: string; color: string }> = {
-    achat:         { label: 'Achat', color: 'var(--brand)' },
-    vente:         { label: 'Vente', color: '#E24B4A' },
-    remboursement: { label: 'Remboursement', color: '#1D9E75' },
-    coupon:        { label: 'Coupon reçu', color: '#EF9F27' },
+  // Prochains coupons estimés
+  const prochainsCoupons: { date: Date; montant: number }[] = []
+  if (maturity && nominalDetenu > 0 && taux > 0) {
+    let next = new Date(today)
+    // Trouver la prochaine date de coupon approximative
+    const monthsPerPeriod = freq === 'semestrielle' ? 6 : freq === 'trimestrielle' ? 3 : 12
+    next.setDate(maturity.getDate())
+    next.setMonth(maturity.getMonth())
+    while (next <= today) next = addMonths(next, monthsPerPeriod)
+    let count = 0
+    while (next <= maturity && count < 10) {
+      prochainsCoupons.push({ date: new Date(next), montant: couponPeriode })
+      next = addMonths(next, monthsPerPeriod)
+      count++
+    }
   }
+
+  const fmt = (v: number, d = 2) => v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: d })
+  const fmtPct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)} %`
+
+  const firstAccountId = transactions.find(t => t.account_id)?.account_id ?? null
 
   return (
     <div style={{ minHeight: '100vh' }}>
@@ -117,17 +140,28 @@ export default function ObligationPage() {
 
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 10 }}>
-          {[
-            { label: 'Capital investi', value: fmtK(capitalInvesti), blur: true },
-            { label: 'Valeur nominale', value: fmtK(valeurNominale), blur: true },
-            { label: 'Coupon annuel', value: fmt(couponAnnuel), blur: true },
-            { label: 'Coupons perçus', value: fmt(couponsPercus), color: '#1D9E75', blur: true },
-          ].map(k => (
-            <div key={k.label} style={card}>
-              <p style={lbl}>{k.label}</p>
-              <p style={{ fontSize: mobile ? 16 : 18, fontWeight: 500, color: k.color ?? 'var(--text)', filter: privacy && k.blur ? 'blur(7px)' : 'none' }}>{k.value}</p>
-            </div>
-          ))}
+          <div style={card}>
+            <p style={lbl}>Nominal détenu</p>
+            <p style={{ fontSize: mobile ? 16 : 20, fontWeight: 500, filter: privacy ? 'blur(7px)' : 'none' }}>{fmt(nominalDetenu, 0)}</p>
+          </div>
+          <div style={card}>
+            <p style={lbl}>Capital versé</p>
+            <p style={{ fontSize: mobile ? 16 : 20, fontWeight: 500, filter: privacy ? 'blur(7px)' : 'none' }}>{fmt(capitalVersé, 0)}</p>
+            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>
+              {capitalVersé > 0 ? `${((capitalVersé / nominalAcheté) * 100).toFixed(2)} % du nominal` : '–'}
+            </p>
+          </div>
+          <div style={card}>
+            <p style={lbl}>PV latente</p>
+            <p style={{ fontSize: mobile ? 16 : 20, fontWeight: 500, color: pvLatente >= 0 ? 'var(--green)' : 'var(--red)', filter: privacy ? 'blur(7px)' : 'none' }}>
+              {pvLatente >= 0 ? '+' : ''}{fmt(pvLatente, 0)}
+            </p>
+            <p style={{ fontSize: 11, color: pvLatente >= 0 ? 'var(--green)' : 'var(--red)', marginTop: 3 }}>{fmtPct(pvPct)}</p>
+          </div>
+          <div style={card}>
+            <p style={lbl}>Coupons perçus</p>
+            <p style={{ fontSize: mobile ? 16 : 20, fontWeight: 500, color: 'var(--green)', filter: privacy ? 'blur(7px)' : 'none' }}>{fmt(couponsPercus, 0)}</p>
+          </div>
         </div>
 
         {/* Fiche */}
@@ -135,14 +169,14 @@ export default function ObligationPage() {
           <p style={{ ...lbl, marginBottom: 12 }}>Caractéristiques</p>
           <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: '0 32px' }}>
             {[
-              ['Nominal / titre', nominal ? fmt(nominal) : '–'],
-              ['Quantité détenue', qty.toString()],
+              ['Nominal unitaire', fmt(nominal, 0)],
               ['Taux coupon', taux ? `${taux} %` : '–'],
-              ['Fréquence', freqLabel[freq] ?? freq],
-              [`Coupon / ${freq === 'semestrielle' ? 'semestre' : freq === 'trimestrielle' ? 'trimestre' : 'an'}`, couponAnnuel ? fmt(couponPeriode) : '–'],
+              [`Coupon ${freqLabel[freq] ?? 'annuel'}`, couponAnnuel ? fmt(couponPeriode) : '–'],
+              ['Fréquence', freq.charAt(0).toUpperCase() + freq.slice(1)],
+              ['Coupon annuel total', couponAnnuel ? fmt(couponAnnuel) : '–'],
+              ['Rendement actuariel (YTM)', ytm ? `${ytm.toFixed(2)} %` : '–'],
               ['Échéance', maturity ? format(maturity, 'd MMMM yyyy', { locale: fr }) : '–'],
               ['Jours restants', joursRestants !== null ? `${joursRestants} j` : '–'],
-              ['Taux de rendement', taux && capitalInvesti ? `${((couponAnnuel / capitalInvesti) * 100).toFixed(2)} %` : '–'],
             ].map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '0.5px solid var(--border)', fontSize: 13 }}>
                 <span style={{ color: 'var(--muted)' }}>{k}</span>
@@ -151,14 +185,14 @@ export default function ObligationPage() {
             ))}
           </div>
 
-          {/* Barre échéance */}
+          {/* Barre de progression */}
           {maturity && achats.length > 0 && (() => {
-            const openDate = new Date(achats[achats.length - 1].date)
-            const total = differenceInDays(maturity, openDate)
+            const openDate = new Date(achats[0].date)
+            const total = Math.max(1, differenceInDays(maturity, openDate))
             const elapsed = differenceInDays(today, openDate)
             const pct = Math.min(100, Math.max(0, (elapsed / total) * 100))
             return (
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 14 }}>
                 <div style={{ width: '100%', height: 5, background: 'var(--bg)', borderRadius: 3, overflow: 'hidden' }}>
                   <div style={{ width: `${pct}%`, height: '100%', background: 'var(--brand)', borderRadius: 3 }} />
                 </div>
@@ -171,6 +205,27 @@ export default function ObligationPage() {
           })()}
         </div>
 
+        {/* Prochains coupons */}
+        {prochainsCoupons.length > 0 && (
+          <div style={card}>
+            <p style={{ ...lbl, marginBottom: 12 }}>Prochains coupons estimés</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {prochainsCoupons.map((c, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span style={{ color: 'var(--muted)' }}>{format(c.date, 'd MMM yyyy', { locale: fr })}</span>
+                  <span style={{ fontWeight: 500, color: 'var(--green)', filter: privacy ? 'blur(5px)' : 'none' }}>{fmt(c.montant)}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, borderTop: '0.5px solid var(--border)', paddingTop: 8, marginTop: 4 }}>
+                <span style={{ color: 'var(--muted)' }}>Total restant</span>
+                <span style={{ fontWeight: 500, color: 'var(--green)', filter: privacy ? 'blur(5px)' : 'none' }}>
+                  {fmt(prochainsCoupons.reduce((s, c) => s + c.montant, 0))}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Graphique */}
         {asset.ticker && (
           <div style={card}>
@@ -180,15 +235,18 @@ export default function ObligationPage() {
         )}
 
         {/* Actions */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-          {(['achat', 'coupon', 'remboursement', 'vente'] as TxType[]).map(t => (
-            <button key={t} onClick={() => { setModalType(t); setShowModal(true) }} style={{
-              padding: '10px', borderRadius: 8, border: `0.5px solid ${typeConfig[t].color}`,
-              background: 'transparent', color: typeConfig[t].color,
-              fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          {([
+            { key: 'achat' as const, label: '+ Achat', color: 'var(--brand)' },
+            { key: 'coupon' as const, label: '+ Coupon reçu', color: '#EF9F27' },
+            { key: 'remboursement' as const, label: '✓ Remboursement', color: 'var(--green)' },
+          ]).map(t => (
+            <button key={t.key} onClick={() => { setModalType(t.key); setShowModal(true) }} style={{
+              padding: '10px 8px', borderRadius: 8, border: `0.5px solid ${t.color}`,
+              background: 'transparent', color: t.color, fontSize: 13, fontWeight: 500,
+              cursor: 'pointer', fontFamily: 'var(--font-sans)',
             }}>
-              <Plus size={14} /> {typeConfig[t].label}
+              {t.label}
             </button>
           ))}
         </div>
@@ -197,15 +255,12 @@ export default function ObligationPage() {
         {coupons.length > 0 && (
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', background: 'var(--bg)', borderBottom: '0.5px solid var(--border)' }}>
-              <p style={lbl}>Coupons reçus ({coupons.length})</p>
+              <p style={lbl}>Coupons reçus — {fmt(couponsPercus, 0)} total</p>
             </div>
-            {coupons.map(tx => (
+            {[...coupons].reverse().map(tx => (
               <div key={tx.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderBottom: '0.5px solid var(--border)', gap: 12, fontSize: 13 }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#EF9F27', flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontWeight: 500 }}>Coupon</p>
-                  {tx.notes && <p style={{ fontSize: 11, color: 'var(--muted)' }}>{tx.notes}</p>}
-                </div>
+                <p style={{ flex: 1, color: 'var(--muted)' }}>Coupon{tx.notes ? ` — ${tx.notes}` : ''}</p>
                 <p style={{ color: 'var(--muted)', fontSize: 12 }}>{format(parseISO(tx.date), 'd MMM yyyy', { locale: fr })}</p>
                 <p style={{ fontWeight: 500, color: '#EF9F27', filter: privacy ? 'blur(5px)' : 'none' }}>+{fmt(tx.quantity * tx.price)}</p>
               </div>
@@ -213,28 +268,39 @@ export default function ObligationPage() {
           </div>
         )}
 
-        {/* Historique transactions */}
-        {transactions.filter(t => t.type !== 'coupon').length > 0 && (
+        {/* Historique achats / remboursements */}
+        {[...achats, ...rembours].length > 0 && (
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', background: 'var(--bg)', borderBottom: '0.5px solid var(--border)' }}>
-              <p style={lbl}>Historique des transactions</p>
+              <p style={lbl}>Achats & Remboursements</p>
             </div>
-            {transactions.filter(t => t.type !== 'coupon').map(tx => {
-              const cfg = typeConfig[tx.type]
+            {[...achats, ...rembours].sort((a, b) => b.date.localeCompare(a.date)).map(tx => {
+              const isAchat = tx.type === 'achat'
+              const montant = tx.quantity * tx.price
               return (
                 <div key={tx.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderBottom: '0.5px solid var(--border)', gap: 12, fontSize: 13 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: isAchat ? 'var(--brand)' : 'var(--green)', flexShrink: 0 }} />
                   <div style={{ flex: 1 }}>
-                    <p style={{ fontWeight: 500 }}>{cfg.label}</p>
-                    <p style={{ fontSize: 11, color: 'var(--muted)' }}>{tx.quantity} titre{tx.quantity > 1 ? 's' : ''} × {fmt(tx.price)}</p>
+                    <p style={{ fontWeight: 500 }}>{isAchat ? 'Achat' : 'Remboursement'}</p>
+                    <p style={{ fontSize: 11, color: 'var(--muted)' }}>
+                      {isAchat
+                        ? `${fmt(tx.quantity, 0)} nominal × ${(tx.price * 100).toFixed(2)} %`
+                        : `${fmt(tx.quantity, 0)} nominal remboursé`}
+                    </p>
                   </div>
                   <p style={{ color: 'var(--muted)', fontSize: 12 }}>{format(parseISO(tx.date), 'd MMM yyyy', { locale: fr })}</p>
-                  <p style={{ fontWeight: 500, color: cfg.color, filter: privacy ? 'blur(5px)' : 'none' }}>
-                    {tx.type === 'vente' || tx.type === 'remboursement' ? '-' : '+'}{fmt(tx.quantity * tx.price)}
+                  <p style={{ fontWeight: 500, color: isAchat ? 'var(--brand)' : 'var(--green)', filter: privacy ? 'blur(5px)' : 'none' }}>
+                    {isAchat ? '-' : '+'}{fmt(montant, 0)}
                   </p>
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {achats.length === 0 && (
+          <div style={{ background: '#FAEEDA', border: '0.5px solid #EF9F27', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#633806' }}>
+            Commencez par enregistrer un <strong>achat</strong> pour initialiser cette obligation.
           </div>
         )}
       </main>
@@ -243,6 +309,9 @@ export default function ObligationPage() {
         <ObligationModal
           type={modalType}
           assetId={id}
+          asset={asset}
+          nominalDetenu={nominalDetenu}
+          firstAccountId={firstAccountId}
           onClose={() => setShowModal(false)}
           onSuccess={loadData}
         />
@@ -251,76 +320,157 @@ export default function ObligationPage() {
   )
 }
 
-function ObligationModal({ type, assetId, onClose, onSuccess }: {
-  type: TxType; assetId: string; onClose: () => void; onSuccess: () => void
+function ObligationModal({ type, assetId, asset, nominalDetenu, firstAccountId, onClose, onSuccess }: {
+  type: 'achat' | 'coupon' | 'remboursement'
+  assetId: string
+  asset: Asset
+  nominalDetenu: number
+  firstAccountId: string | null
+  onClose: () => void
+  onSuccess: () => void
 }) {
   const supabase = createClient()
-  const [qty, setQty] = useState('1')
-  const [price, setPrice] = useState('')
+  const [nominal, setNominal] = useState(type === 'remboursement' ? nominalDetenu.toString() : (asset.obligation_nominal ?? 1000).toString())
+  const [prixPct, setPrixPct] = useState('100')
+  const [montantCoupon, setMontantCoupon] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [notes, setNotes] = useState('')
+  const [accountId, setAccountId] = useState(firstAccountId ?? '')
+  const [accounts, setAccounts] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
-  const isCoupon = type === 'coupon'
-  const typeConfig: Record<TxType, { label: string; color: string }> = {
-    achat:         { label: 'Enregistrer un achat', color: 'var(--brand)' },
-    vente:         { label: 'Enregistrer une vente', color: '#E24B4A' },
-    remboursement: { label: 'Remboursement à l\'échéance', color: '#1D9E75' },
-    coupon:        { label: 'Coupon reçu', color: '#EF9F27' },
-  }
+  useEffect(() => {
+    supabase.from('accounts').select('*').order('name').then(({ data }) => setAccounts(data ?? []))
+  }, [])
+
+  // Calcul automatique du coupon si on connaît le taux
+  useEffect(() => {
+    if (type === 'coupon' && asset.obligation_coupon && asset.obligation_nominal) {
+      const freq = asset.obligation_frequency ?? 'annuelle'
+      const div = freq === 'semestrielle' ? 2 : freq === 'trimestrielle' ? 4 : 1
+      const coupon = (nominalDetenu || parseFloat(nominal)) * (asset.obligation_coupon / 100) / div
+      if (coupon > 0) setMontantCoupon(coupon.toFixed(2))
+    }
+  }, [type, asset])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    // Trouver un account_id valide
-    const { data: txs } = await supabase.from('transactions').select('account_id').eq('asset_id', assetId).limit(1)
-    const accountId = txs?.[0]?.account_id
-    if (!accountId) { alert('Ajoutez d\'abord un achat pour associer un compte.'); setLoading(false); return }
 
-    await supabase.from('transactions').insert({
-      user_id: user.id,
-      asset_id: assetId,
-      account_id: accountId,
-      type,
-      quantity: isCoupon ? 1 : parseFloat(qty),
-      price: parseFloat(price),
-      date,
-      notes: notes || null,
-    })
+    let payload: any
+    if (type === 'achat') {
+      payload = {
+        user_id: user.id, asset_id: assetId, account_id: accountId,
+        type: 'achat',
+        quantity: parseFloat(nominal),      // nominal acheté (ex: 10000)
+        price: parseFloat(prixPct) / 100,   // prix en décimal (ex: 0.98)
+        date, notes: notes || null,
+      }
+    } else if (type === 'coupon') {
+      payload = {
+        user_id: user.id, asset_id: assetId, account_id: accountId ?? firstAccountId,
+        type: 'interets',
+        quantity: 1,
+        price: parseFloat(montantCoupon),
+        date, notes: notes || null,
+      }
+    } else {
+      // Remboursement
+      payload = {
+        user_id: user.id, asset_id: assetId, account_id: accountId ?? firstAccountId,
+        type: 'vente',
+        quantity: parseFloat(nominal),  // nominal remboursé
+        price: 1.0,                     // 100%
+        date, notes: notes || null,
+      }
+    }
+
+    await supabase.from('transactions').insert(payload)
     onSuccess(); onClose()
   }
 
+  const config = {
+    achat: { title: 'Achat d\'obligation', color: 'var(--brand)' },
+    coupon: { title: 'Coupon reçu', color: '#EF9F27' },
+    remboursement: { title: 'Remboursement à l\'échéance', color: 'var(--green)' },
+  }
+
+  const montantTotal = type === 'achat'
+    ? parseFloat(nominal || '0') * (parseFloat(prixPct || '100') / 100)
+    : type === 'remboursement'
+    ? parseFloat(nominal || '0')
+    : parseFloat(montantCoupon || '0')
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
-      <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 24, width: '100%', maxWidth: 380, border: '0.5px solid var(--border)' }}>
+      <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 24, width: '100%', maxWidth: 400, border: '0.5px solid var(--border)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 500, color: typeConfig[type].color }}>{typeConfig[type].label}</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 500, color: config[type].color }}>{config[type].title}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={16} /></button>
         </div>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {!isCoupon && (
+
+          {type === 'achat' && (
+            <>
+              <div>
+                <label style={lbl2}>Compte</label>
+                <select value={accountId} onChange={e => setAccountId(e.target.value)} required style={inp}>
+                  <option value="">Sélectionner un compte</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl2}>Nominal acheté (€)</label>
+                <input type="number" step="100" min="0" value={nominal} onChange={e => setNominal(e.target.value)} required placeholder="10000" style={inp} autoFocus />
+                <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>Ex : 10 000 pour une obligation de 10 000€ nominal</p>
+              </div>
+              <div>
+                <label style={lbl2}>Prix d&apos;achat (%)</label>
+                <input type="number" step="0.01" min="0" max="200" value={prixPct} onChange={e => setPrixPct(e.target.value)} required placeholder="98" style={inp} />
+                <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>Ex : 98 pour acheter à 98% du nominal</p>
+              </div>
+            </>
+          )}
+
+          {type === 'coupon' && (
             <div>
-              <label style={lbl2}>Quantité (titres)</label>
-              <input type="number" step="1" min="1" value={qty} onChange={e => setQty(e.target.value)} required style={inp} />
+              <label style={lbl2}>Montant du coupon (€)</label>
+              <input type="number" step="0.01" min="0" value={montantCoupon} onChange={e => setMontantCoupon(e.target.value)} required placeholder="0.00" style={inp} autoFocus />
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>Montant net reçu</p>
             </div>
           )}
-          <div>
-            <label style={lbl2}>{isCoupon ? 'Montant reçu (€)' : 'Prix par titre (€)'}</label>
-            <input type="number" step="0.01" min="0" value={price} onChange={e => setPrice(e.target.value)} required placeholder="0.00" style={inp} autoFocus />
-          </div>
+
+          {type === 'remboursement' && (
+            <div>
+              <label style={lbl2}>Nominal remboursé (€)</label>
+              <input type="number" step="100" min="0" value={nominal} onChange={e => setNominal(e.target.value)} required style={inp} />
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>Remboursement à 100% du nominal</p>
+            </div>
+          )}
+
           <div>
             <label style={lbl2}>Date</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} required style={inp} />
           </div>
           <div>
             <label style={lbl2}>Note (optionnel)</label>
-            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Ex : coupon Q2 2025" style={inp} />
+            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder={type === 'coupon' ? 'Ex : coupon S1 2025' : ''} style={inp} />
           </div>
+
+          {/* Total */}
+          {montantTotal > 0 && (
+            <div style={{ background: 'var(--bg)', borderRadius: 7, padding: '9px 12px', fontSize: 13 }}>
+              <span style={{ color: 'var(--muted)' }}>{type === 'achat' ? 'Décaissement : ' : type === 'remboursement' ? 'Encaissement : ' : 'Montant : '}</span>
+              <span style={{ fontWeight: 500 }}>{montantTotal.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</span>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
             <button type="button" onClick={onClose} style={{ padding: 10, borderRadius: 7, border: '0.5px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Annuler</button>
-            <button type="submit" disabled={loading} style={{ padding: 10, borderRadius: 7, border: 'none', background: typeConfig[type].color, color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+            <button type="submit" disabled={loading} style={{ padding: 10, borderRadius: 7, border: 'none', background: config[type].color, color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
               {loading ? '…' : 'Enregistrer'}
             </button>
           </div>
