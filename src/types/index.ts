@@ -31,6 +31,9 @@ export interface Asset {
   livret_mode?: LivretMode
   livret_balance?: number
   livret_rate?: number
+  dividend_yield?: number
+  dividend_frequency?: string
+  dividend_month?: number
   created_at: string
   prices?: Price
 }

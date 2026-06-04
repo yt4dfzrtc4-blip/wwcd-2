@@ -118,9 +118,9 @@ export default function RevenusPage() {
 
       const txs = (transactions ?? []).filter((t: any) => t.asset_id === asset.id)
 
-      // Coupons réels reçus cette année
+      // Coupons réels reçus cette année (type 'interets' ou 'coupon')
       const realCoupons = txs.filter((t: any) => {
-        if (t.type !== 'coupon') return false
+        if (t.type !== 'coupon' && t.type !== 'interets') return false
         const d = new Date(t.date)
         return d.getFullYear() === year
       })
@@ -163,21 +163,22 @@ export default function RevenusPage() {
       })
     }
 
-    // ── DIVIDENDES ── transactions de type 'dividende' cette année
+    // ── DIVIDENDES ── réels (transactions type 'dividende') + estimés (dividend_yield sur l'actif)
     const dividendeTxs = (transactions ?? []).filter((t: any) => {
       if (t.type !== 'dividende') return false
       return new Date(t.date).getFullYear() === year
     })
 
-    // Grouper par actif
-    const divByAsset: Record<string, { name: string; txs: any[] }> = {}
+    // Dividendes réels reçus — groupés par actif
+    const divRealByAsset: Record<string, { name: string; txs: any[] }> = {}
     for (const tx of dividendeTxs) {
       const assetName = (tx as any).asset?.name ?? tx.asset_id
-      if (!divByAsset[tx.asset_id]) divByAsset[tx.asset_id] = { name: assetName, txs: [] }
-      divByAsset[tx.asset_id].txs.push(tx)
+      if (!divRealByAsset[tx.asset_id]) divRealByAsset[tx.asset_id] = { name: assetName, txs: [] }
+      divRealByAsset[tx.asset_id].txs.push(tx)
     }
+    const assetsWithRealDiv = new Set(Object.keys(divRealByAsset))
 
-    for (const [, { name, txs: dtxs }] of Object.entries(divByAsset)) {
+    for (const [, { name, txs: dtxs }] of Object.entries(divRealByAsset)) {
       const monthly = Array(12).fill(0)
       dtxs.forEach((t: any) => { monthly[new Date(t.date).getMonth()] += t.quantity * t.price })
       const annual = dtxs.reduce((s: number, t: any) => s + t.quantity * t.price, 0)
@@ -188,6 +189,48 @@ export default function RevenusPage() {
         monthlyBreakdown: monthly,
         detail: `${dtxs.length} dividende(s) enregistré(s) en ${year}`,
         isEstimate: false,
+      })
+    }
+
+    // Dividendes estimés depuis dividend_yield (actifs sans dividendes réels enregistrés)
+    for (const asset of (assets ?? [])) {
+      if (assetsWithRealDiv.has(asset.id)) continue
+      const dyield = (asset as any).dividend_yield
+      if (!dyield) continue
+
+      const freq = (asset as any).dividend_frequency ?? 'annuelle'
+      const startMonth = Math.max(0, ((asset as any).dividend_month ?? 1) - 1) // 0-indexed
+
+      const txs = (transactions ?? []).filter((t: any) => t.asset_id === asset.id)
+      const qtyAchat = txs.filter((t: any) => t.type === 'achat').reduce((s: number, t: any) => s + t.quantity, 0)
+      const qtyVente = txs.filter((t: any) => t.type === 'vente').reduce((s: number, t: any) => s + t.quantity, 0)
+      const qty = Math.max(0, qtyAchat - qtyVente)
+      if (!qty) continue
+
+      const currentPrice = (asset as any).prices?.price ?? 0
+      if (!currentPrice) continue
+
+      const annualDiv = qty * currentPrice * (dyield / 100)
+      const monthly = Array(12).fill(0)
+
+      if (freq === 'mensuelle') {
+        for (let m = 0; m < 12; m++) monthly[m] = annualDiv / 12
+      } else if (freq === 'trimestrielle') {
+        for (let i = 0; i < 4; i++) monthly[(startMonth + i * 3) % 12] += annualDiv / 4
+      } else if (freq === 'semestrielle') {
+        monthly[startMonth % 12] += annualDiv / 2
+        monthly[(startMonth + 6) % 12] += annualDiv / 2
+      } else {
+        monthly[startMonth % 12] += annualDiv
+      }
+
+      result.push({
+        name: asset.name,
+        type: 'dividende',
+        annualAmount: annualDiv,
+        monthlyBreakdown: monthly,
+        detail: `${qty} titre(s) × ${currentPrice.toFixed(2)} € × ${dyield} % (${freq})`,
+        isEstimate: true,
       })
     }
 
@@ -328,7 +371,7 @@ export default function RevenusPage() {
 
         {/* Note dividendes */}
         <div style={{ background: 'var(--bg)', border: '0.5px solid var(--border)', borderRadius: 10, padding: '12px 16px', fontSize: 12, color: 'var(--muted)' }}>
-          💡 Pour enregistrer un dividende : Transactions → Nouvelle transaction → type <strong>Dividende</strong> → sélectionner l&apos;actif + montant
+          💡 Les dividendes sont estimés automatiquement si vous renseignez un <strong>rendement dividende</strong> sur l&apos;actif (Actions & ETF). Pour enregistrer un dividende réel reçu : Transactions → type <strong>Dividende</strong>.
         </div>
       </main>
     </div>

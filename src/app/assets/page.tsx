@@ -338,10 +338,14 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
     obligation_frequency: (asset as any)?.obligation_frequency ?? 'annuelle',
     obligation_maturity: (asset as any)?.obligation_maturity ?? '',
     obligation_nominal: (asset as any)?.obligation_nominal?.toString() ?? '',
+    dividend_yield: (asset as any)?.dividend_yield?.toString() ?? '',
+    dividend_frequency: (asset as any)?.dividend_frequency ?? 'annuelle',
+    dividend_month: (asset as any)?.dividend_month?.toString() ?? '1',
   })
   const [loading, setLoading] = useState(false)
   const showLivretOptions = ['livret', 'cat', 'per', 'or'].includes(form.category)
   const showObligationOptions = form.category === 'obligation'
+  const showDividendOptions = ['action', 'etf'].includes(form.category)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -365,6 +369,9 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
       obligation_frequency: showObligationOptions ? form.obligation_frequency : null,
       obligation_maturity: showObligationOptions && form.obligation_maturity ? form.obligation_maturity : null,
       obligation_nominal: showObligationOptions && form.obligation_nominal ? parseFloat(form.obligation_nominal) : null,
+      dividend_yield: showDividendOptions && form.dividend_yield ? parseFloat(form.dividend_yield) : null,
+      dividend_frequency: showDividendOptions ? form.dividend_frequency : null,
+      dividend_month: showDividendOptions && form.dividend_month ? parseInt(form.dividend_month) : null,
     }
     if (asset?.id) {
       await supabase.from('assets').update(payload).eq('id', asset.id)
@@ -433,6 +440,28 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
           </div>
           <Field label="Date d&apos;échéance">
             <input type="date" value={form.obligation_maturity} onChange={e => setForm(f => ({ ...f, obligation_maturity: e.target.value }))} style={inp} />
+          </Field>
+        </>)}
+        {showDividendOptions && (<>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <Field label="Rendement dividende (% / an)">
+              <input type="number" step="0.01" value={form.dividend_yield} onChange={e => setForm(f => ({ ...f, dividend_yield: e.target.value }))} placeholder="2.5" style={inp} />
+            </Field>
+            <Field label="Fréquence">
+              <select value={form.dividend_frequency} onChange={e => setForm(f => ({ ...f, dividend_frequency: e.target.value }))} style={inp}>
+                <option value="annuelle">Annuelle</option>
+                <option value="semestrielle">Semestrielle</option>
+                <option value="trimestrielle">Trimestrielle</option>
+                <option value="mensuelle">Mensuelle</option>
+              </select>
+            </Field>
+          </div>
+          <Field label="1er mois de versement">
+            <select value={form.dividend_month} onChange={e => setForm(f => ({ ...f, dividend_month: e.target.value }))} style={inp}>
+              {['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'].map((m, i) => (
+                <option key={i} value={i + 1}>{m}</option>
+              ))}
+            </select>
           </Field>
         </>)}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>

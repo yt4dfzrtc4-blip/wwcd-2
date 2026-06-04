@@ -2,20 +2,20 @@
 
 import { useState } from 'react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { format, parseISO, subMonths, subYears } from 'date-fns'
+import { format, parseISO, subDays, subWeeks, subMonths, subYears } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { Snapshot } from '@/types'
 import { formatEur } from '@/lib/portfolio'
 
-type Period = '1m' | '3m' | '6m' | '1a' | '3a' | '5a' | 'max'
-const PERIODS: { key: Period; label: string; months?: number; years?: number }[] = [
+type Period = '1j' | '1s' | '1m' | '1a' | '3a' | '5a' | '10a'
+const PERIODS: { key: Period; label: string; days?: number; weeks?: number; months?: number; years?: number }[] = [
+  { key: '1j',  label: '1J',  days: 1 },
+  { key: '1s',  label: '1S',  weeks: 1 },
   { key: '1m',  label: '1M',  months: 1 },
-  { key: '3m',  label: '3M',  months: 3 },
-  { key: '6m',  label: '6M',  months: 6 },
   { key: '1a',  label: '1A',  years: 1 },
   { key: '3a',  label: '3A',  years: 3 },
   { key: '5a',  label: '5A',  years: 5 },
-  { key: 'max', label: 'Max' },
+  { key: '10a', label: '10A', years: 10 },
 ]
 
 interface EvolutionChartProps {
@@ -24,13 +24,15 @@ interface EvolutionChartProps {
 }
 
 export default function EvolutionChart({ snapshots, hidden }: EvolutionChartProps) {
-  const [period, setPeriod] = useState<Period>('1a')
+  const [period, setPeriod] = useState<Period>('1m')
 
   const now = new Date()
-  const cutoff = period === 'max' ? null
-    : PERIODS.find(p => p.key === period)?.years
-      ? subYears(now, PERIODS.find(p => p.key === period)!.years!)
-      : subMonths(now, PERIODS.find(p => p.key === period)!.months!)
+  const p = PERIODS.find(p => p.key === period)!
+  const cutoff = p.years ? subYears(now, p.years)
+    : p.months ? subMonths(now, p.months)
+    : p.weeks ? subWeeks(now, p.weeks)
+    : p.days ? subDays(now, p.days)
+    : null
 
   const filtered = cutoff
     ? snapshots.filter(s => new Date(s.date) >= cutoff)
@@ -47,8 +49,8 @@ export default function EvolutionChart({ snapshots, hidden }: EvolutionChartProp
   }))
 
   const tickFormat = (d: string) => {
-    if (['1m','3m'].includes(period)) return format(parseISO(d), 'd MMM', { locale: fr })
-    if (['6m','1a'].includes(period)) return format(parseISO(d), 'MMM', { locale: fr })
+    if (['1j','1s'].includes(period)) return format(parseISO(d), 'd MMM', { locale: fr })
+    if (['1m','1a'].includes(period)) return format(parseISO(d), 'd MMM', { locale: fr })
     return format(parseISO(d), 'MMM yy', { locale: fr })
   }
 

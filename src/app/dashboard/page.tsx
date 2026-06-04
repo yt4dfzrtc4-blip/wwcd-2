@@ -135,7 +135,7 @@ export default function DashboardPage() {
         {/* Graphiques */}
         <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 16 }}>
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
-            <p style={sectionLabel}>Évolution 12 mois</p>
+            <p style={sectionLabel}>Évolution</p>
             <EvolutionChart snapshots={snapshots} hidden={privacy} />
           </div>
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
