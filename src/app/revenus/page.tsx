@@ -40,10 +40,26 @@ export default function RevenusPage() {
     const yearEnd = new Date(year, 11, 31)
 
     const [{ data: assets }, { data: accounts }, { data: transactions }] = await Promise.all([
-      supabase.from('assets').select('*'),
+      supabase.from('assets').select('*, prices(*)'),
       supabase.from('accounts').select('*'),
       supabase.from('transactions').select('*, asset:assets(name, category)').order('date', { ascending: true }),
     ])
+
+    // Auto-fetch dividend info from Yahoo for action/ETF assets with ticker
+    const divInfoCache: Record<string, { dividendYield: number | null; frequency: string | null; month: number | null }> = {}
+    await Promise.all(
+      (assets ?? [])
+        .filter((a: any) => ['action', 'etf'].includes(a.category) && a.ticker)
+        .map(async (a: any) => {
+          try {
+            const r = await fetch(`/api/asset-info?ticker=${encodeURIComponent(a.ticker)}`)
+            const d = await r.json()
+            divInfoCache[a.id] = { dividendYield: d.dividendYield ?? null, frequency: d.frequency ?? null, month: d.month ?? null }
+          } catch {
+            divInfoCache[a.id] = { dividendYield: null, frequency: null, month: null }
+          }
+        })
+    )
 
     const result: RevenueItem[] = []
 
@@ -192,20 +208,22 @@ export default function RevenusPage() {
       })
     }
 
-    // Dividendes estimés depuis dividend_yield (actifs sans dividendes réels enregistrés)
+    // Dividendes estimés automatiquement depuis Yahoo (ou dividend_yield sur l'actif si renseigné)
     for (const asset of (assets ?? [])) {
       if (assetsWithRealDiv.has(asset.id)) continue
-      const dyield = (asset as any).dividend_yield
+      if (!['action', 'etf'].includes(asset.category)) continue
+
+      const yahooInfo = divInfoCache[asset.id]
+      const dyield = yahooInfo?.dividendYield ?? (asset as any).dividend_yield
       if (!dyield) continue
 
-      const freq = (asset as any).dividend_frequency ?? 'annuelle'
-      const startMonth = Math.max(0, ((asset as any).dividend_month ?? 1) - 1) // 0-indexed
+      const freq = yahooInfo?.frequency ?? (asset as any).dividend_frequency ?? 'annuelle'
+      const startMonth = Math.max(0, ((yahooInfo?.month ?? (asset as any).dividend_month ?? 1) - 1))
 
       const txs = (transactions ?? []).filter((t: any) => t.asset_id === asset.id)
-      const qtyAchat = txs.filter((t: any) => t.type === 'achat').reduce((s: number, t: any) => s + t.quantity, 0)
-      const qtyVente = txs.filter((t: any) => t.type === 'vente').reduce((s: number, t: any) => s + t.quantity, 0)
-      const qty = Math.max(0, qtyAchat - qtyVente)
-      if (!qty) continue
+      const qty = txs.filter((t: any) => t.type === 'achat').reduce((s: number, t: any) => s + t.quantity, 0)
+        - txs.filter((t: any) => t.type === 'vente').reduce((s: number, t: any) => s + t.quantity, 0)
+      if (qty <= 0) continue
 
       const currentPrice = (asset as any).prices?.price ?? 0
       if (!currentPrice) continue
@@ -229,7 +247,7 @@ export default function RevenusPage() {
         type: 'dividende',
         annualAmount: annualDiv,
         monthlyBreakdown: monthly,
-        detail: `${qty} titre(s) × ${currentPrice.toFixed(2)} € × ${dyield} % (${freq})`,
+        detail: `${qty} titre(s) × ${currentPrice.toFixed(2)} € × ${dyield} % (${freq}) — Yahoo estimé`,
         isEstimate: true,
       })
     }

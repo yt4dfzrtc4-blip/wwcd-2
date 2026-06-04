@@ -7,6 +7,7 @@ import type { Asset, Account, Bank, AssetCategory, LivretMode } from '@/types'
 import Topbar from '@/components/layout/Topbar'
 import { CATEGORY_LABELS, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfolio'
 import { Plus, Pencil, Trash2, X, ChevronDown, ChevronRight } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export default function AssetsPage() {
   const supabase = createClient()
@@ -322,6 +323,7 @@ function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; a
 
 function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClose: () => void; onSuccess: () => void }) {
   const supabase = createClient()
+  const router = useRouter()
   const predefinedCategories = ['action','etf','crypto','obligation','livret','cat','per','or','autre']
   const assetCategoryIsCustom = asset?.category && !predefinedCategories.includes(asset.category)
   const [form, setForm] = useState({
@@ -343,9 +345,31 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
     dividend_month: (asset as any)?.dividend_month?.toString() ?? '1',
   })
   const [loading, setLoading] = useState(false)
+  const [dividendFetching, setDividendFetching] = useState(false)
   const showLivretOptions = ['livret', 'cat', 'per', 'or'].includes(form.category)
   const showObligationOptions = form.category === 'obligation'
   const showDividendOptions = ['action', 'etf'].includes(form.category)
+
+  useEffect(() => {
+    if (!showDividendOptions || !form.ticker) return
+    const t = setTimeout(async () => {
+      setDividendFetching(true)
+      try {
+        const r = await fetch(`/api/asset-info?ticker=${encodeURIComponent(form.ticker)}`)
+        const d = await r.json()
+        if (d.dividendYield) {
+          setForm(f => ({
+            ...f,
+            dividend_yield: d.dividendYield.toString(),
+            ...(d.frequency ? { dividend_frequency: d.frequency } : {}),
+            ...(d.month ? { dividend_month: d.month.toString() } : {}),
+          }))
+        }
+      } catch { /* ignore */ }
+      setDividendFetching(false)
+    }, 600)
+    return () => clearTimeout(t)
+  }, [form.ticker, showDividendOptions])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -375,10 +399,14 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
     }
     if (asset?.id) {
       await supabase.from('assets').update(payload).eq('id', asset.id)
+      onSuccess(); onClose()
     } else {
-      await supabase.from('assets').insert(payload)
+      const { data: newAsset } = await supabase.from('assets').insert(payload).select('id').single()
+      onSuccess(); onClose()
+      if (finalCategory === 'obligation' && newAsset?.id) {
+        router.push(`/obligations/${newAsset.id}`)
+      }
     }
-    onSuccess(); onClose()
   }
 
   return (
@@ -444,8 +472,8 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
         </>)}
         {showDividendOptions && (<>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <Field label="Rendement dividende (% / an)">
-              <input type="number" step="0.01" value={form.dividend_yield} onChange={e => setForm(f => ({ ...f, dividend_yield: e.target.value }))} placeholder="2.5" style={inp} />
+            <Field label={dividendFetching ? 'Rendement dividende (récupération…)' : 'Rendement dividende (% / an)'}>
+              <input type="number" step="0.01" value={form.dividend_yield} onChange={e => setForm(f => ({ ...f, dividend_yield: e.target.value }))} placeholder={dividendFetching ? '…' : '2.5'} style={inp} />
             </Field>
             <Field label="Fréquence">
               <select value={form.dividend_frequency} onChange={e => setForm(f => ({ ...f, dividend_frequency: e.target.value }))} style={inp}>
@@ -495,6 +523,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   )
 }
+
 
 const inp: React.CSSProperties = { width: '100%', padding: '9px 11px', borderRadius: 7, border: '0.5px solid var(--border)', fontSize: 13, background: 'var(--bg)', color: 'var(--text)', outline: 'none', fontFamily: 'var(--font-sans)' }
 const btnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 5, padding: '7px 13px', borderRadius: 7, background: 'var(--brand)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font-sans)' }
