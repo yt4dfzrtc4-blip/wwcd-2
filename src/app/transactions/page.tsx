@@ -20,6 +20,7 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true)
   const [mobile, setMobile] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [search, setSearch] = useState('')
   const [importResult, setImportResult] = useState<{ ok: number; errors: string[] } | null>(null)
 
   useEffect(() => {
@@ -130,12 +131,21 @@ export default function TransactionsPage() {
     ? '80px 1fr 80px 50px'
     : '95px 60px 1fr 90px 90px 90px 60px'
 
+  const filtered = search.trim()
+    ? transactions.filter(tx => {
+        const q = search.toLowerCase()
+        const asset = (tx as any).asset
+        const account = (tx as any).account
+        return asset?.name?.toLowerCase().includes(q) || account?.name?.toLowerCase().includes(q)
+      })
+    : transactions
+
   return (
     <div style={{ minHeight: '100vh' }}>
       <Topbar privacy={privacy} onTogglePrivacy={togglePrivacy} onRefresh={async () => {}} />
 
       <main style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
           <h1 style={{ fontSize: 18, fontWeight: 500 }}>Transactions</h1>
           <div style={{ display: 'flex', gap: 8 }}>
             <label style={{
@@ -174,6 +184,14 @@ export default function TransactionsPage() {
           </div>
         </div>
 
+        {/* Recherche */}
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Rechercher un actif ou un compte…"
+          style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '0.5px solid var(--border)', fontSize: 13, background: 'var(--bg)', color: 'var(--text)', marginBottom: 12, outline: 'none', fontFamily: 'var(--font-sans)' }}
+        />
+
         {importResult && (
           <div style={{ background: importResult.errors.length ? '#FAEEDA' : '#E1F5EE', border: `0.5px solid ${importResult.errors.length ? '#EF9F27' : '#1D9E75'}`, borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13 }}>
             <p style={{ fontWeight: 500, color: importResult.errors.length ? '#633806' : '#085041' }}>
@@ -210,8 +228,12 @@ export default function TransactionsPage() {
             <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
               Aucune transaction enregistrée
             </div>
+          ) : !filtered.length ? (
+            <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+              Aucun résultat pour &quot;{search}&quot;
+            </div>
           ) : (
-            transactions.map(tx => {
+            filtered.map(tx => {
               const total = tx.quantity * tx.price
               const asset = (tx as any).asset
               const account = (tx as any).account
