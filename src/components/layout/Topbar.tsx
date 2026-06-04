@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { LayoutDashboard, ArrowLeftRight, TrendingUp, Eye, EyeOff, RefreshCw, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, ArrowLeftRight, TrendingUp, Eye, EyeOff, RefreshCw, LogOut, Menu, X, Banknote } from 'lucide-react'
 
 interface TopbarProps {
   privacy: boolean
@@ -41,6 +41,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
     { href: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
     { href: '/transactions', icon: ArrowLeftRight,  label: 'Transactions' },
     { href: '/assets',       icon: TrendingUp,      label: 'Actifs' },
+    { href: '/revenus',      icon: Banknote,        label: 'Revenus' },
   ]
 
   return (

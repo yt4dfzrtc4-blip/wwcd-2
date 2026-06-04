@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  if (!isLoggedIn && (path === '/' || path.startsWith('/dashboard') || path.startsWith('/assets') || path.startsWith('/transactions'))) {
+  if (!isLoggedIn && (path === '/' || path.startsWith('/dashboard') || path.startsWith('/assets') || path.startsWith('/transactions') || path.startsWith('/revenus'))) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
