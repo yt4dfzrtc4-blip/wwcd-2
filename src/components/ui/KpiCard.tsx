@@ -3,12 +3,13 @@ interface KpiCardProps {
   value: string
   sub?: string
   subColor?: 'gain' | 'loss' | 'neutral'
+  valueColor?: 'gain' | 'loss' | 'neutral'
   hidden?: boolean
   subHidden?: boolean
 }
 
-export default function KpiCard({ label, value, sub, subColor = 'neutral', hidden, subHidden }: KpiCardProps) {
-  const subColors = { gain: 'var(--green)', loss: 'var(--red)', neutral: 'var(--muted)' }
+export default function KpiCard({ label, value, sub, subColor = 'neutral', valueColor, hidden, subHidden }: KpiCardProps) {
+  const colors = { gain: 'var(--green)', loss: 'var(--red)', neutral: 'var(--muted)' }
 
   return (
     <div style={{
@@ -23,7 +24,7 @@ export default function KpiCard({ label, value, sub, subColor = 'neutral', hidde
       <p style={{
         fontSize: 22,
         fontWeight: 500,
-        color: 'var(--text)',
+        color: valueColor ? colors[valueColor] : 'var(--text)',
         filter: hidden ? 'blur(8px)' : 'none',
         userSelect: hidden ? 'none' : 'auto',
         transition: 'filter 0.2s',
@@ -34,7 +35,7 @@ export default function KpiCard({ label, value, sub, subColor = 'neutral', hidde
       {sub && (
         <p style={{
           fontSize: 11, marginTop: 5,
-          color: subColors[subColor],
+          color: colors[subColor],
           filter: subHidden ? 'blur(5px)' : 'none',
           userSelect: subHidden ? 'none' : 'auto',
           transition: 'filter 0.2s',

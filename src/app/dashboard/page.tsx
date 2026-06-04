@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [mobile, setMobile] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<'value' | 'pnl' | 'pnl_pct' | 'day' | 'name' | 'category'>('value')
 
   useEffect(() => {
     const check = () => setMobile(window.innerWidth < 640)
@@ -122,8 +123,8 @@ export default function DashboardPage() {
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: mobile ? 'repeat(2, 1fr)' : 'repeat(4, minmax(0,1fr))', gap: 10, marginBottom: 16 }}>
           <KpiCard label="Patrimoine total" value={s ? formatEur(s.total_value, 0) : '–'} sub={s ? `Capital investi : ${formatEur(s.total_invested, 0)}` : undefined} hidden={privacy} subHidden={privacy} />
-          <KpiCard label="Plus-value latente" value={s ? formatEur(s.total_pnl, 0) : '–'} sub={s ? formatPct(s.total_pnl_pct) : undefined} subColor={s && s.total_pnl >= 0 ? 'gain' : 'loss'} hidden={privacy} />
-          <KpiCard label="Performance globale" value={s ? formatPct(s.total_pnl_pct) : '–'} subColor={s && s.total_pnl_pct >= 0 ? 'gain' : 'loss'} hidden={privacy} />
+          <KpiCard label="Plus-value latente" value={s ? formatEur(s.total_pnl, 0) : '–'} valueColor={s && s.total_pnl >= 0 ? 'gain' : 'loss'} hidden={privacy} />
+          <KpiCard label="Performance globale" value={s ? formatPct(s.total_pnl_pct) : '–'} valueColor={s && s.total_pnl_pct >= 0 ? 'gain' : 'loss'} hidden={privacy} />
           <KpiCard label="Variation du jour" value={s ? formatEur(s.day_change, 0) : '–'} sub={s ? formatPct(s.day_change_pct) : undefined} subColor={s && s.day_change >= 0 ? 'gain' : 'loss'} hidden={privacy} />
         </div>
 
@@ -189,16 +190,28 @@ export default function DashboardPage() {
 
         {/* Positions */}
         <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
             <p style={sectionLabel}>Positions ouvertes ({s?.positions.length ?? 0})</p>
-            <span style={{ fontSize: 11, color: 'var(--muted)' }}>Triées par valorisation</span>
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as any)}
+              style={{ fontSize: 11, color: 'var(--muted)', border: '0.5px solid var(--border)', borderRadius: 6, padding: '3px 6px', background: 'var(--bg)', cursor: 'pointer' }}
+            >
+              <option value="value">Valorisation</option>
+              <option value="pnl">PV latente €</option>
+              <option value="pnl_pct">PV latente %</option>
+              <option value="day">Variation jour</option>
+              <option value="name">Nom</option>
+              <option value="category">Catégorie</option>
+            </select>
           </div>
 
           {/* En-tête */}
-          <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 90px 100px' : '1fr 100px 110px 70px 20px', gap: 8, padding: '4px 10px', fontSize: 11, color: 'var(--muted)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 80px 90px 40px' : '1fr 90px 110px 50px 70px 20px', gap: 8, padding: '4px 10px', fontSize: 11, color: 'var(--muted)' }}>
             <span>Actif</span>
             <span style={{ textAlign: 'right' }}>Valeur</span>
             <span style={{ textAlign: 'right' }}>+/- latent</span>
+            <span style={{ textAlign: 'right' }}>Poids</span>
             {!mobile && <span style={{ textAlign: 'right' }}>Catégorie</span>}
             {!mobile && <span />}
           </div>
@@ -208,8 +221,17 @@ export default function DashboardPage() {
               Aucune position — ajoutez votre première transaction
             </div>
           ) : (
-            s.positions.map(pos => (
-              <PositionRow key={`${pos.asset.id}-${pos.account.id}`} pos={pos} hidden={privacy} mobile={mobile} onClick={() => router.push(`/assets/${pos.asset.id}`)} />
+            [...s.positions].sort((a, b) => {
+              switch (sortBy) {
+                case 'pnl': return b.pnl - a.pnl
+                case 'pnl_pct': return b.pnl_pct - a.pnl_pct
+                case 'day': return (b.day_change ?? 0) - (a.day_change ?? 0)
+                case 'name': return a.asset.name.localeCompare(b.asset.name)
+                case 'category': return a.asset.category.localeCompare(b.asset.category)
+                default: return b.current_value - a.current_value
+              }
+            }).map(pos => (
+              <PositionRow key={`${pos.asset.id}-${pos.account.id}`} pos={pos} hidden={privacy} mobile={mobile} totalValue={totalValue} onClick={() => router.push(`/assets/${pos.asset.id}`)} />
             ))
           )}
         </div>
@@ -226,12 +248,13 @@ export default function DashboardPage() {
 
 const sectionLabel: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }
 
-function PositionRow({ pos, hidden, mobile, onClick }: { pos: Position; hidden: boolean; mobile: boolean; onClick: () => void }) {
+function PositionRow({ pos, hidden, mobile, totalValue, onClick }: { pos: Position; hidden: boolean; mobile: boolean; totalValue: number; onClick: () => void }) {
   const isGain = pos.pnl >= 0
+  const weight = totalValue > 0 ? (pos.current_value / totalValue) * 100 : 0
   return (
     <div
       onClick={onClick}
-      style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 90px 100px' : '1fr 100px 110px 70px 20px', gap: 8, padding: '9px 10px', borderRadius: 7, cursor: 'pointer', alignItems: 'center', fontSize: 13 }}
+      style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 80px 90px 40px' : '1fr 90px 110px 50px 70px 20px', gap: 8, padding: '9px 10px', borderRadius: 7, cursor: 'pointer', alignItems: 'center', fontSize: 13 }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
@@ -244,6 +267,7 @@ function PositionRow({ pos, hidden, mobile, onClick }: { pos: Position; hidden: 
         <p style={{ color: isGain ? 'var(--green)' : 'var(--red)', fontWeight: 500 }}>{isGain ? '+' : ''}{formatEur(pos.pnl, 0)}</p>
         <p style={{ fontSize: 11, color: isGain ? 'var(--green)' : 'var(--red)' }}>{formatPct(pos.pnl_pct)}</p>
       </div>
+      <p style={{ textAlign: 'right', fontSize: 11, color: 'var(--muted)' }}>{weight.toFixed(1)}%</p>
       {!mobile && <div style={{ textAlign: 'right' }}>
         <span className={`badge ${getCategoryBadgeClass(pos.asset.category)}`}>{getCategoryLabel(pos.asset.category)}</span>
       </div>}
