@@ -202,6 +202,16 @@ export default function TransactionModal({ onClose, onSuccess, editTransaction }
             )}
           </div>
 
+          {/* Avertissement obligation */}
+          {form.asset_id && assets.find(a => a.id === form.asset_id)?.category === 'obligation' && (
+            <div style={{ background: '#FAEEDA', border: '0.5px solid #EF9F27', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#633806' }}>
+              Les obligations ont une page dédiée avec les bons champs (nominal, prix %, coupons).{' '}
+              <a href={`/obligations/${form.asset_id}`} style={{ color: '#633806', fontWeight: 600 }}>
+                Ouvrir la page →
+              </a>
+            </div>
+          )}
+
           {/* Quantité + Prix */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div>

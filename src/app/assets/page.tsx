@@ -142,7 +142,7 @@ export default function AssetsPage() {
           </div>
 
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 80px 50px' : '1fr 90px 110px 100px 50px', gap: 8, padding: '9px 16px', background: 'var(--bg)', borderBottom: '0.5px solid var(--border)', fontSize: 11, color: 'var(--muted)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 80px auto' : '1fr 90px 110px 100px auto', gap: 8, padding: '9px 16px', background: 'var(--bg)', borderBottom: '0.5px solid var(--border)', fontSize: 11, color: 'var(--muted)' }}>
               <span>Nom</span>
               <span>{mobile ? 'Catégorie' : 'Catégorie'}</span>
               {!mobile && <span>ISIN / Ticker</span>}
@@ -153,7 +153,7 @@ export default function AssetsPage() {
               <p style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Aucun actif</p>
             ) : assets.map(a => (
               <div key={a.id}
-                style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 80px 50px' : '1fr 90px 110px 100px 50px', gap: 8, padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: 13, alignItems: 'center' }}
+                style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 80px auto' : '1fr 90px 110px 100px auto', gap: 8, padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: 13, alignItems: 'center' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
@@ -452,10 +452,7 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
           </div>
         )}
         {showObligationOptions && (<>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <Field label="ISIN (optionnel)"><input value={form.isin} onChange={e => setForm(f => ({ ...f, isin: e.target.value }))} placeholder="FR0011869353" style={inp} /></Field>
-            <Field label="Nominal (€)"><input type="number" step="0.01" value={form.obligation_nominal} onChange={e => setForm(f => ({ ...f, obligation_nominal: e.target.value }))} placeholder="1000" style={inp} /></Field>
-          </div>
+          <Field label="ISIN (optionnel)"><input value={form.isin} onChange={e => setForm(f => ({ ...f, isin: e.target.value }))} placeholder="FR0011869353" style={inp} /></Field>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <Field label="Taux coupon (%)"><input type="number" step="0.01" value={form.obligation_coupon} onChange={e => setForm(f => ({ ...f, obligation_coupon: e.target.value }))} placeholder="3.5" style={inp} /></Field>
             <Field label="Fréquence">

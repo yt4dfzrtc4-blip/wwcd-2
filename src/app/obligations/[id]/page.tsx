@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { usePrivacy } from '@/hooks/usePrivacy'
 import Topbar from '@/components/layout/Topbar'
 import PriceChart from '@/components/charts/PriceChart'
-import { ArrowLeft, X, Plus } from 'lucide-react'
+import { ArrowLeft, X, Plus, Pencil, Trash2 } from 'lucide-react'
 import { format, parseISO, differenceInDays, addMonths, addYears, addQuarters } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -29,6 +29,7 @@ export default function ObligationPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [showModal, setShowModal] = useState(false)
   const [modalType, setModalType] = useState<'achat' | 'coupon' | 'remboursement'>('achat')
+  const [editTx, setEditTx] = useState<Transaction | null>(null)
   const [mobile, setMobile] = useState(false)
 
   useEffect(() => {
@@ -169,7 +170,6 @@ export default function ObligationPage() {
           <p style={{ ...lbl, marginBottom: 12 }}>Caractéristiques</p>
           <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: '0 32px' }}>
             {[
-              ['Nominal unitaire', fmt(nominal, 0)],
               ['Taux coupon', taux ? `${taux} %` : '–'],
               [`Coupon ${freqLabel[freq] ?? 'annuel'}`, couponAnnuel ? fmt(couponPeriode) : '–'],
               ['Fréquence', freq.charAt(0).toUpperCase() + freq.slice(1)],
@@ -292,6 +292,12 @@ export default function ObligationPage() {
                   <p style={{ fontWeight: 500, color: isAchat ? 'var(--brand)' : 'var(--green)', filter: privacy ? 'blur(5px)' : 'none' }}>
                     {isAchat ? '-' : '+'}{fmt(montant, 0)}
                   </p>
+                  <button onClick={() => { setEditTx(tx); setModalType(isAchat ? 'achat' : 'remboursement'); setShowModal(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}>
+                    <Pencil size={13} />
+                  </button>
+                  <button onClick={async () => { if (confirm('Supprimer cette transaction ?')) { await supabase.from('transactions').delete().eq('id', tx.id); loadData() } }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', padding: 4 }}>
+                    <Trash2 size={13} />
+                  </button>
                 </div>
               )
             })}
@@ -312,7 +318,8 @@ export default function ObligationPage() {
           asset={asset}
           nominalDetenu={nominalDetenu}
           firstAccountId={firstAccountId}
-          onClose={() => setShowModal(false)}
+          editTx={editTx}
+          onClose={() => { setShowModal(false); setEditTx(null) }}
           onSuccess={loadData}
         />
       )}
@@ -320,24 +327,45 @@ export default function ObligationPage() {
   )
 }
 
-function ObligationModal({ type, assetId, asset, nominalDetenu, firstAccountId, onClose, onSuccess }: {
+function ObligationModal({ type, assetId, asset, nominalDetenu, firstAccountId, editTx, onClose, onSuccess }: {
   type: 'achat' | 'coupon' | 'remboursement'
   assetId: string
   asset: Asset
   nominalDetenu: number
   firstAccountId: string | null
+  editTx?: Transaction | null
   onClose: () => void
   onSuccess: () => void
 }) {
   const supabase = createClient()
-  const [nominal, setNominal] = useState(type === 'remboursement' ? nominalDetenu.toString() : (asset.obligation_nominal ?? 1000).toString())
-  const [prixPct, setPrixPct] = useState('100')
-  const [montantCoupon, setMontantCoupon] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-  const [notes, setNotes] = useState('')
-  const [accountId, setAccountId] = useState(firstAccountId ?? '')
+  const [nominal, setNominal] = useState(
+    editTx ? editTx.quantity.toString()
+    : type === 'remboursement' ? nominalDetenu.toString()
+    : ''
+  )
+  const [prixPct, setPrixPct] = useState(editTx ? (editTx.price * 100).toFixed(2) : '100')
+  const [montantCoupon, setMontantCoupon] = useState(editTx ? (editTx.quantity * editTx.price).toString() : '')
+  const [date, setDate] = useState(editTx?.date ?? new Date().toISOString().split('T')[0])
+  const [notes, setNotes] = useState(editTx?.notes ?? '')
+  const [accountId, setAccountId] = useState(editTx?.account_id ?? firstAccountId ?? '')
   const [accounts, setAccounts] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [currency, setCurrency] = useState('EUR')
+  const [fxRate, setFxRate] = useState(1)
+  const [fxLoading, setFxLoading] = useState(false)
+
+  useEffect(() => {
+    if (currency === 'EUR') { setFxRate(1); return }
+    setFxLoading(true)
+    fetch(`/api/price-history?ticker=${currency}EUR%3DX&period=1j`)
+      .then(r => r.json())
+      .then(d => {
+        const pts = d.points ?? []
+        if (pts.length) setFxRate(pts[pts.length - 1].v)
+      })
+      .catch(() => {})
+      .finally(() => setFxLoading(false))
+  }, [currency])
 
   useEffect(() => {
     supabase.from('accounts').select('*').order('name').then(({ data }) => setAccounts(data ?? []))
@@ -362,12 +390,16 @@ function ObligationModal({ type, assetId, asset, nominalDetenu, firstAccountId, 
 
     let payload: any
     if (type === 'achat') {
+      const nominalEur = parseFloat(nominal) * fxRate  // converti en EUR
+      const notesStr = currency !== 'EUR'
+        ? `${nominal} ${currency} @ ${fxRate.toFixed(4)}${notes ? ' — ' + notes : ''}`
+        : notes || null
       payload = {
         user_id: user.id, asset_id: assetId, account_id: accountId,
         type: 'achat',
-        quantity: parseFloat(nominal),      // nominal acheté (ex: 10000)
-        price: parseFloat(prixPct) / 100,   // prix en décimal (ex: 0.98)
-        date, notes: notes || null,
+        quantity: nominalEur,             // nominal en EUR
+        price: parseFloat(prixPct) / 100, // prix en décimal (ex: 0.98)
+        date, notes: notesStr,
       }
     } else if (type === 'coupon') {
       payload = {
@@ -388,18 +420,22 @@ function ObligationModal({ type, assetId, asset, nominalDetenu, firstAccountId, 
       }
     }
 
-    await supabase.from('transactions').insert(payload)
+    if (editTx?.id) {
+      await supabase.from('transactions').update(payload).eq('id', editTx.id)
+    } else {
+      await supabase.from('transactions').insert(payload)
+    }
     onSuccess(); onClose()
   }
 
   const config = {
-    achat: { title: 'Achat d\'obligation', color: 'var(--brand)' },
-    coupon: { title: 'Coupon reçu', color: '#EF9F27' },
-    remboursement: { title: 'Remboursement à l\'échéance', color: 'var(--green)' },
+    achat: { title: editTx ? 'Modifier l\'achat' : 'Achat d\'obligation', color: 'var(--brand)' },
+    coupon: { title: editTx ? 'Modifier le coupon' : 'Coupon reçu', color: '#EF9F27' },
+    remboursement: { title: editTx ? 'Modifier le remboursement' : 'Remboursement à l\'échéance', color: 'var(--green)' },
   }
 
   const montantTotal = type === 'achat'
-    ? parseFloat(nominal || '0') * (parseFloat(prixPct || '100') / 100)
+    ? parseFloat(nominal || '0') * fxRate * (parseFloat(prixPct || '100') / 100)
     : type === 'remboursement'
     ? parseFloat(nominal || '0')
     : parseFloat(montantCoupon || '0')
@@ -422,11 +458,27 @@ function ObligationModal({ type, assetId, asset, nominalDetenu, firstAccountId, 
                   {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </div>
-              <div>
-                <label style={lbl2}>Nominal acheté (€)</label>
-                <input type="number" step="100" min="0" value={nominal} onChange={e => setNominal(e.target.value)} required placeholder="10000" style={inp} autoFocus />
-                <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>Ex : 10 000 pour une obligation de 10 000€ nominal</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: 8 }}>
+                <div>
+                  <label style={lbl2}>Nominal acheté ({currency})</label>
+                  <input type="number" step="1" min="0" value={nominal} onChange={e => setNominal(e.target.value)} required placeholder="10000" style={inp} autoFocus />
+                </div>
+                <div>
+                  <label style={lbl2}>Devise</label>
+                  <select value={currency} onChange={e => setCurrency(e.target.value)} style={inp}>
+                    <option value="EUR">EUR €</option>
+                    <option value="USD">USD $</option>
+                    <option value="GBP">GBP £</option>
+                    <option value="CHF">CHF</option>
+                    <option value="JPY">JPY ¥</option>
+                  </select>
+                </div>
               </div>
+              {currency !== 'EUR' && (
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: -6 }}>
+                  {fxLoading ? 'Récupération du taux…' : `1 ${currency} = ${fxRate.toFixed(4)} EUR · Nominal EUR : ${(parseFloat(nominal || '0') * fxRate).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}`}
+                </div>
+              )}
               <div>
                 <label style={lbl2}>Prix d&apos;achat (%)</label>
                 <input type="number" step="0.01" min="0" max="200" value={prixPct} onChange={e => setPrixPct(e.target.value)} required placeholder="98" style={inp} />
@@ -446,7 +498,7 @@ function ObligationModal({ type, assetId, asset, nominalDetenu, firstAccountId, 
           {type === 'remboursement' && (
             <div>
               <label style={lbl2}>Nominal remboursé (€)</label>
-              <input type="number" step="100" min="0" value={nominal} onChange={e => setNominal(e.target.value)} required style={inp} />
+              <input type="number" step="1" min="0" value={nominal} onChange={e => setNominal(e.target.value)} required style={inp} />
               <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>Remboursement à 100% du nominal</p>
             </div>
           )}

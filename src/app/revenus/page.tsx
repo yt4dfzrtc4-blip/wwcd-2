@@ -157,12 +157,13 @@ export default function RevenusPage() {
       }
 
       // Estimation si pas encore de coupons enregistrés
-      if (!coupon || !nominal) continue
+      if (!coupon) continue
+      // qty = nominal total détenu en € (la quantité dans les transactions obligation = nominal en €)
       const qty = txs.filter((t: any) => t.type === 'achat').reduce((s: number, t: any) => s + t.quantity, 0)
         - txs.filter((t: any) => t.type === 'vente' || t.type === 'remboursement').reduce((s: number, t: any) => s + t.quantity, 0)
       if (!qty) continue
 
-      const couponAnnuel = nominal * qty * (coupon / 100)
+      const couponAnnuel = qty * (coupon / 100)
       const monthly = Array(12).fill(0)
       const freqDiv = freq === 'semestrielle' ? 2 : freq === 'trimestrielle' ? 4 : 1
       if (freq === 'semestrielle') { monthly[5] = couponAnnuel / 2; monthly[11] = couponAnnuel / 2 }
@@ -174,7 +175,7 @@ export default function RevenusPage() {
         type: 'obligation',
         annualAmount: couponAnnuel,
         monthlyBreakdown: monthly,
-        detail: `${qty} titre(s) × ${nominal} € × ${coupon} % (${freq})`,
+        detail: `${qty.toLocaleString('fr-FR')} € nominal × ${coupon} % (${freq})`,
         isEstimate: true,
       })
     }
