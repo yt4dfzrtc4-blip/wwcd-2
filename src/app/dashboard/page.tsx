@@ -40,7 +40,7 @@ export default function DashboardPage() {
       supabase.from('transactions').select('*, asset:assets(*, prices(*)), account:accounts(*, bank:banks(*))'),
       supabase.from('assets').select('*, prices(*)'),
       supabase.from('accounts').select('*, bank:banks(*)'),
-      supabase.from('snapshots').select('*').order('date', { ascending: true }).limit(365),
+      supabase.from('snapshots').select('*').order('date', { ascending: true }),
       supabase.from('prices').select('updated_at').order('updated_at', { ascending: false }).limit(1),
     ])
 
