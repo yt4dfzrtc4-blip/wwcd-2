@@ -177,7 +177,12 @@ export default function AssetsPage() {
                     : (a as any).prices?.price ? `${(a as any).prices.price.toFixed(2)} €` : '–'
                   }
                 </span>}
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+                  {a.category === 'obligation' && (
+                    <a href={`/obligations/${a.id}`} style={{ fontSize: 12, color: 'var(--brand)', textDecoration: 'none', padding: '4px 10px', border: '0.5px solid var(--brand)', borderRadius: 6, whiteSpace: 'nowrap' }}>
+                      Gérer
+                    </a>
+                  )}
                   <button onClick={() => { setEditAsset(a); setShowAssetModal(true) }} style={iconBtn}><Pencil size={13} /></button>
                   <button onClick={() => deleteAsset(a.id)} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={13} /></button>
                 </div>
