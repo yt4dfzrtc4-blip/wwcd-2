@@ -17,6 +17,8 @@ export default function TransactionModal({ onClose, onSuccess, editTransaction }
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [assetSearch, setAssetSearch] = useState('')
+  const [showDropdown, setShowDropdown] = useState(false)
 
   const [form, setForm] = useState({
     account_id: editTransaction?.account_id ?? '',
@@ -39,6 +41,22 @@ export default function TransactionModal({ onClose, onSuccess, editTransaction }
     }
     load()
   }, [])
+
+  // Pré-remplir la recherche si édition
+  useEffect(() => {
+    if (editTransaction?.asset_id && assets.length > 0) {
+      const a = assets.find(a => a.id === editTransaction.asset_id)
+      if (a) setAssetSearch(a.name)
+    }
+  }, [assets, editTransaction])
+
+  const filteredAssets = assetSearch.trim()
+    ? assets.filter(a =>
+        a.name.toLowerCase().includes(assetSearch.toLowerCase()) ||
+        (a.isin ?? '').toLowerCase().includes(assetSearch.toLowerCase()) ||
+        (a.ticker ?? '').toLowerCase().includes(assetSearch.toLowerCase())
+      )
+    : assets
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -107,21 +125,25 @@ export default function TransactionModal({ onClose, onSuccess, editTransaction }
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Type achat/vente */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {(['achat', 'vente'] as const).map(t => (
+          {/* Type */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+            {([
+              { key: 'achat', label: 'Achat', color: 'var(--brand)' },
+              { key: 'vente', label: 'Vente', color: 'var(--red)' },
+              { key: 'dividende', label: 'Dividende', color: 'var(--green)' },
+            ] as const).map(t => (
               <button
-                key={t} type="button"
-                onClick={() => setForm(f => ({ ...f, type: t }))}
+                key={t.key} type="button"
+                onClick={() => setForm(f => ({ ...f, type: t.key }))}
                 style={{
-                  padding: '9px', borderRadius: 7, fontSize: 13, cursor: 'pointer',
+                  padding: '8px', borderRadius: 7, fontSize: 13, cursor: 'pointer',
                   fontFamily: 'var(--font-sans)', fontWeight: 500,
-                  border: form.type === t ? '1.5px solid var(--brand)' : '0.5px solid var(--border)',
-                  background: form.type === t ? 'var(--brand-light)' : 'transparent',
-                  color: form.type === t ? 'var(--brand)' : 'var(--muted)',
+                  border: form.type === t.key ? `1.5px solid ${t.color}` : '0.5px solid var(--border)',
+                  background: form.type === t.key ? `${t.color}18` : 'transparent',
+                  color: form.type === t.key ? t.color : 'var(--muted)',
                 }}
               >
-                {t === 'achat' ? 'Achat' : 'Vente'}
+                {t.label}
               </button>
             ))}
           </div>
@@ -135,13 +157,49 @@ export default function TransactionModal({ onClose, onSuccess, editTransaction }
             </select>
           </div>
 
-          {/* Actif */}
-          <div>
+          {/* Actif avec recherche */}
+          <div style={{ position: 'relative' }}>
             <label style={labelStyle}>Actif</label>
-            <select value={form.asset_id} onChange={e => setForm(f => ({ ...f, asset_id: e.target.value }))} required style={inputStyle}>
-              <option value="">Sélectionner un actif</option>
-              {assets.map(a => <option key={a.id} value={a.id}>{a.name} {a.isin ? `· ${a.isin}` : ''}</option>)}
-            </select>
+            <input
+              value={assetSearch}
+              onChange={e => { setAssetSearch(e.target.value); setShowDropdown(true); setForm(f => ({ ...f, asset_id: '' })) }}
+              onFocus={() => setShowDropdown(true)}
+              onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+              placeholder="Rechercher par nom, ISIN ou ticker…"
+              required={!form.asset_id}
+              style={{ ...inputStyle, borderColor: form.asset_id ? 'var(--brand)' : 'var(--border)' }}
+              autoComplete="off"
+            />
+            {form.asset_id && (
+              <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 6, height: 6, borderRadius: '50%', background: 'var(--brand)', marginTop: 10 }} />
+            )}
+            {showDropdown && filteredAssets.length > 0 && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                background: 'var(--surface)', border: '0.5px solid var(--border)',
+                borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                maxHeight: 200, overflowY: 'auto', marginTop: 4,
+              }}>
+                {filteredAssets.slice(0, 20).map(a => (
+                  <div
+                    key={a.id}
+                    onMouseDown={() => { setForm(f => ({ ...f, asset_id: a.id })); setAssetSearch(a.name); setShowDropdown(false) }}
+                    style={{
+                      padding: '9px 12px', cursor: 'pointer', fontSize: 13,
+                      background: form.asset_id === a.id ? 'var(--brand-light)' : 'transparent',
+                      borderBottom: '0.5px solid var(--border)',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = form.asset_id === a.id ? 'var(--brand-light)' : 'transparent')}
+                  >
+                    <p style={{ fontWeight: 500 }}>{a.name}</p>
+                    <p style={{ fontSize: 11, color: 'var(--muted)' }}>
+                      {[a.isin, a.ticker, a.category].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Quantité + Prix */}
