@@ -10,6 +10,7 @@ import TransactionModal from '@/components/ui/TransactionModal'
 import { Plus, Pencil, Trash2, Download, Upload } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import * as XLSX from 'xlsx'
 
 export default function TransactionsPage() {
   const supabase = createClient()
@@ -47,17 +48,11 @@ export default function TransactionsPage() {
     loadData()
   }
 
-  async function importCSV(e: React.ChangeEvent<HTMLInputElement>) {
+  async function importFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setImporting(true)
     setImportResult(null)
-
-    const text = await file.text()
-    // Supprimer BOM éventuel
-    const clean = text.replace(/^﻿/, '')
-    const lines = clean.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-    const dataLines = lines.slice(1)
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -67,71 +62,74 @@ export default function TransactionsPage() {
       supabase.from('accounts').select('id, name').eq('user_id', user.id),
     ])
 
-    // Détecter le séparateur : ; ou ,
-    const sep = lines[0]?.includes(';') ? ';' : ','
-
-    // Parser une ligne CSV (gère les guillemets et les deux séparateurs)
-    function parseLine(line: string): string[] {
-      const result: string[] = []
-      let cur = ''
-      let inQuotes = false
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i]
-        if (ch === '"') { inQuotes = !inQuotes }
-        else if (ch === sep && !inQuotes) { result.push(cur.trim()); cur = '' }
-        else { cur += ch }
-      }
-      result.push(cur.trim())
-      return result
-    }
-
     // Convertir un nombre FR (1 234,56 ou 1234.56) en float
-    function parseFR(val: string): number {
-      return parseFloat(val.replace(/\s/g, '').replace(',', '.'))
+    function parseFR(val: any): number {
+      if (typeof val === 'number') return val
+      return parseFloat(String(val).replace(/\s/g, '').replace(',', '.'))
     }
 
-    // Convertir une date dd/mm/yyyy ou yyyy-mm-dd en yyyy-mm-dd
-    function parseDate(val: string): string {
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(val)) {
-        const [d, m, y] = val.split('/')
-        return `${y}-${m}-${d}`
+    // Convertir une date dd/mm/yyyy, yyyy-mm-dd, ou serial Excel en yyyy-mm-dd
+    function parseDate(val: any): string {
+      if (typeof val === 'number') {
+        // Serial Excel → date JS
+        const d = XLSX.SSF.parse_date_code(val)
+        return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`
       }
-      if (/^\d{2}-\d{2}-\d{4}$/.test(val)) {
-        const [d, m, y] = val.split('-')
-        return `${y}-${m}-${d}`
-      }
-      return val // déjà yyyy-mm-dd
+      const s = String(val).trim()
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) { const [d,m,y] = s.split('/'); return `${y}-${m}-${d}` }
+      if (/^\d{2}-\d{2}-\d{4}$/.test(s)) { const [d,m,y] = s.split('-'); return `${y}-${m}-${d}` }
+      return s
     }
+
+    // Lire les lignes selon le type de fichier
+    let rows: any[][] = []
+    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
+
+    if (isExcel) {
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array', cellDates: false })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as any[][]
+    } else {
+      const text = (await file.text()).replace(/^﻿/, '')
+      const sep = text.split('\n')[0]?.includes(';') ? ';' : ','
+      rows = text.split(/\r?\n/).map(line => {
+        const cols: string[] = []
+        let cur = '', inQ = false
+        for (const ch of line) {
+          if (ch === '"') inQ = !inQ
+          else if (ch === sep && !inQ) { cols.push(cur.trim()); cur = '' }
+          else cur += ch
+        }
+        cols.push(cur.trim())
+        return cols
+      })
+    }
+
+    const dataRows = rows.slice(1).filter(r => r.some(c => c !== ''))
 
     let ok = 0
     const errors: string[] = []
 
-    for (let i = 0; i < dataLines.length; i++) {
-      const cols = parseLine(dataLines[i])
-      const [rawDate, type, assetName, , accountName, rawQty, rawPrice] = cols
+    for (let i = 0; i < dataRows.length; i++) {
+      const [rawDate, type, assetName, , accountName, rawQty, rawPrice] = dataRows[i]
+      const date = parseDate(rawDate)
+      const qty = parseFR(rawQty)
+      const price = parseFR(rawPrice)
 
-      const date = parseDate(rawDate?.trim() ?? '')
-      const qty = parseFR(rawQty ?? '')
-      const price = parseFR(rawPrice ?? '')
-
-      const asset = assets?.find(a => a.name.toLowerCase() === assetName?.toLowerCase().trim())
-      const account = accounts?.find(a => a.name.toLowerCase() === accountName?.toLowerCase().trim())
+      const asset = assets?.find(a => a.name.toLowerCase() === String(assetName).toLowerCase().trim())
+      const account = accounts?.find(a => a.name.toLowerCase() === String(accountName).toLowerCase().trim())
 
       if (!asset) { errors.push(`Ligne ${i + 2} — Actif introuvable : "${assetName}"`); continue }
       if (!account) { errors.push(`Ligne ${i + 2} — Compte introuvable : "${accountName}"`); continue }
       if (!date || isNaN(qty) || isNaN(price)) { errors.push(`Ligne ${i + 2} — Données manquantes ou invalides`); continue }
 
-      const txType = type?.toLowerCase().trim()
+      const txType = String(type).toLowerCase().trim()
       const validType = ['achat', 'vente', 'dividende', 'interets'].includes(txType) ? txType : 'achat'
 
       const { error } = await supabase.from('transactions').insert({
-        user_id: user.id,
-        asset_id: asset.id,
-        account_id: account.id,
-        type: validType,
-        date,
-        quantity: qty,
-        price,
+        user_id: user.id, asset_id: asset.id, account_id: account.id,
+        type: validType, date, quantity: qty, price,
       })
       if (error) errors.push(`Ligne ${i + 2} — Erreur : ${error.message}`)
       else ok++
@@ -204,7 +202,7 @@ export default function TransactionsPage() {
               cursor: 'pointer', fontFamily: 'var(--font-sans)',
             }}>
               <Upload size={14} /> {!mobile && (importing ? 'Import…' : 'Import CSV')}
-              <input type="file" accept=".csv" onChange={importCSV} style={{ display: 'none' }} />
+              <input type="file" accept=".csv,.xlsx,.xls" onChange={importFile} style={{ display: 'none' }} />
             </label>
             {transactions.length > 0 && (
               <button onClick={exportCSV} style={{
