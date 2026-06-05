@@ -7,10 +7,11 @@ import { formatEur, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfo
 import type { Transaction } from '@/types'
 import Topbar from '@/components/layout/Topbar'
 import TransactionModal from '@/components/ui/TransactionModal'
-import { Plus, Pencil, Trash2, Download, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, Upload, ChevronDown } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import * as XLSX from 'xlsx'
+import { useRef } from 'react'
 
 export default function TransactionsPage() {
   const supabase = createClient()
@@ -22,7 +23,10 @@ export default function TransactionsPage() {
   const [mobile, setMobile] = useState(false)
   const [importing, setImporting] = useState(false)
   const [search, setSearch] = useState('')
-  const [importResult, setImportResult] = useState<{ ok: number; errors: string[] } | null>(null)
+  const [importResult, setImportResult] = useState<{ ok: number; skipped: number; errors: string[] } | null>(null)
+  const [showImportInfo, setShowImportInfo] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const check = () => setMobile(window.innerWidth < 640)
@@ -108,7 +112,17 @@ export default function TransactionsPage() {
 
     const dataRows = rows.slice(1).filter(r => r.some(c => c !== ''))
 
-    let ok = 0
+    // Charger les transactions existantes pour déduplication
+    const { data: existing } = await supabase
+      .from('transactions')
+      .select('date, type, asset_id, account_id, quantity, price')
+      .eq('user_id', user.id)
+
+    const existingSet = new Set(
+      (existing ?? []).map(t => `${t.date}|${t.type}|${t.asset_id}|${t.account_id}|${t.quantity}|${t.price}`)
+    )
+
+    let ok = 0, skipped = 0
     const errors: string[] = []
 
     for (let i = 0; i < dataRows.length; i++) {
@@ -127,43 +141,61 @@ export default function TransactionsPage() {
       const txType = String(type).toLowerCase().trim()
       const validType = ['achat', 'vente', 'dividende', 'interets'].includes(txType) ? txType : 'achat'
 
+      // Déduplication
+      const key = `${date}|${validType}|${asset.id}|${account.id}|${qty}|${price}`
+      if (existingSet.has(key)) { skipped++; continue }
+
       const { error } = await supabase.from('transactions').insert({
         user_id: user.id, asset_id: asset.id, account_id: account.id,
         type: validType, date, quantity: qty, price,
       })
       if (error) errors.push(`Ligne ${i + 2} — Erreur : ${error.message}`)
-      else ok++
+      else { ok++; existingSet.add(key) }
     }
 
-    setImportResult({ ok, errors })
+    setImportResult({ ok, skipped, errors })
     setImporting(false)
     e.target.value = ''
     if (ok > 0) loadData()
   }
 
-  function exportCSV() {
+  function buildExportData() {
     const header = ['Date', 'Type', 'Actif', 'Catégorie', 'Compte', 'Quantité', 'Prix unitaire', 'Total']
     const rows = transactions.map(tx => {
       const asset = (tx as any).asset
       const account = (tx as any).account
-      // Date au format dd/mm/yyyy pour Excel FR
       const [y, m, d] = tx.date.split('-')
-      const dateStr = `${d}/${m}/${y}`
-      // Nombres avec virgule décimale pour Excel FR
-      const fmtNum = (n: number) => n.toFixed(4).replace('.', ',')
+      const typeLabel = tx.type === 'achat' ? 'Achat' : tx.type === 'vente' ? 'Vente' : tx.type === 'dividende' ? 'Dividende' : 'Interets'
       return [
-        dateStr,
-        tx.type === 'achat' ? 'Achat' : tx.type === 'vente' ? 'Vente' : tx.type === 'dividende' ? 'Dividende' : 'Interets',
+        `${d}/${m}/${y}`,
+        typeLabel,
         asset?.name ?? '',
         asset?.category ?? '',
         account?.name ?? '',
-        fmtNum(tx.quantity),
-        fmtNum(tx.price),
-        fmtNum(tx.quantity * tx.price),
+        tx.quantity,
+        tx.price,
+        tx.quantity * tx.price,
       ]
     })
-    // Séparateur ; pour Excel FR
-    const csv = [header, ...rows].map(r => r.map(v => `"${v}"`).join(';')).join('\n')
+    return { header, rows }
+  }
+
+  function exportXLSX() {
+    const { header, rows } = buildExportData()
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows])
+    // Largeurs de colonnes
+    ws['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 30 }, { wch: 12 }, { wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 12 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Transactions')
+    XLSX.writeFile(wb, `wwcd-transactions-${new Date().toISOString().split('T')[0]}.xlsx`)
+    setShowExportMenu(false)
+  }
+
+  function exportCSV() {
+    const { header, rows } = buildExportData()
+    const fmtNum = (n: number) => n.toFixed(4).replace('.', ',')
+    const csvRows = [header, ...rows.map(r => r.map((v, i) => i >= 5 ? fmtNum(Number(v)) : v))]
+    const csv = csvRows.map(r => r.map(v => `"${v}"`).join(';')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -171,6 +203,7 @@ export default function TransactionsPage() {
     a.download = `wwcd-transactions-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     URL.revokeObjectURL(url)
+    setShowExportMenu(false)
   }
 
   const cols = mobile
@@ -194,26 +227,45 @@ export default function TransactionsPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
           <h1 style={{ fontSize: 18, fontWeight: 500 }}>Transactions</h1>
           <div style={{ display: 'flex', gap: 8 }}>
-            <label style={{
+            {/* Bouton Import */}
+            <button onClick={() => setShowImportInfo(true)} style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '8px 12px', borderRadius: 8,
               background: 'var(--surface)', color: importing ? 'var(--brand)' : 'var(--muted)',
               border: '0.5px solid var(--border)', fontSize: 13,
               cursor: 'pointer', fontFamily: 'var(--font-sans)',
             }}>
-              <Upload size={14} /> {!mobile && (importing ? 'Import…' : 'Import CSV')}
-              <input type="file" accept=".csv,.xlsx,.xls" onChange={importFile} style={{ display: 'none' }} />
-            </label>
+              <Upload size={14} /> {!mobile && (importing ? 'Import…' : 'Importer')}
+            </button>
+            <input ref={importInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={importFile} style={{ display: 'none' }} />
+
+            {/* Bouton Export avec menu */}
             {transactions.length > 0 && (
-              <button onClick={exportCSV} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 12px', borderRadius: 8,
-                background: 'var(--surface)', color: 'var(--muted)',
-                border: '0.5px solid var(--border)', fontSize: 13,
-                cursor: 'pointer', fontFamily: 'var(--font-sans)',
-              }}>
-                <Download size={14} /> {!mobile && 'Export CSV'}
-              </button>
+              <div style={{ position: 'relative' }}>
+                <button onClick={() => setShowExportMenu(v => !v)} style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '8px 12px', borderRadius: 8,
+                  background: 'var(--surface)', color: 'var(--muted)',
+                  border: '0.5px solid var(--border)', fontSize: 13,
+                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                }}>
+                  <Download size={14} /> {!mobile && 'Exporter'} <ChevronDown size={12} />
+                </button>
+                {showExportMenu && (
+                  <div style={{ position: 'absolute', top: '110%', right: 0, background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.1)', zIndex: 50, minWidth: 160, overflow: 'hidden' }}>
+                    <button onClick={exportXLSX} style={{ display: 'block', width: '100%', padding: '10px 14px', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-sans)', color: 'var(--text)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                      📊 Excel (.xlsx)
+                    </button>
+                    <button onClick={exportCSV} style={{ display: 'block', width: '100%', padding: '10px 14px', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-sans)', color: 'var(--text)', borderTop: '0.5px solid var(--border)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                      📄 CSV (.csv)
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
             <button
               onClick={() => { setEditTx(null); setShowModal(true) }}
@@ -241,7 +293,8 @@ export default function TransactionsPage() {
         {importResult && (
           <div style={{ background: importResult.errors.length ? '#FAEEDA' : '#E1F5EE', border: `0.5px solid ${importResult.errors.length ? '#EF9F27' : '#1D9E75'}`, borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13 }}>
             <p style={{ fontWeight: 500, color: importResult.errors.length ? '#633806' : '#085041' }}>
-              ✓ {importResult.ok} transaction{importResult.ok > 1 ? 's' : ''} importée{importResult.ok > 1 ? 's' : ''}
+              ✓ {importResult.ok} importée{importResult.ok > 1 ? 's' : ''}
+              {importResult.skipped > 0 && <span style={{ fontWeight: 400 }}> · {importResult.skipped} doublon{importResult.skipped > 1 ? 's' : ''} ignoré{importResult.skipped > 1 ? 's' : ''}</span>}
               {importResult.errors.length > 0 && ` · ${importResult.errors.length} erreur${importResult.errors.length > 1 ? 's' : ''}`}
             </p>
             {importResult.errors.map((e, i) => (
@@ -336,6 +389,39 @@ export default function TransactionsPage() {
           onSuccess={loadData}
           editTransaction={editTx}
         />
+      )}
+
+      {/* Modale info avant import */}
+      {showImportInfo && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 24, width: '100%', maxWidth: 480, border: '0.5px solid var(--border)' }}>
+            <h2 style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}>Format d&apos;import</h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+              Fichiers acceptés : <strong>.xlsx, .xls, .csv</strong>. Les colonnes doivent être dans cet ordre :
+            </p>
+            <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '10px 14px', fontSize: 12, fontFamily: 'var(--font-mono)', marginBottom: 12, overflowX: 'auto', whiteSpace: 'nowrap' }}>
+              Date · Type · Actif · Catégorie · Compte · Quantité · Prix unitaire · Total
+            </div>
+            <ul style={{ fontSize: 12, color: 'var(--muted)', paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
+              <li><strong>Date</strong> : dd/mm/yyyy ou yyyy-mm-dd</li>
+              <li><strong>Type</strong> : Achat, Vente, Dividende, Interets</li>
+              <li><strong>Actif / Compte</strong> : nom exact tel qu&apos;il existe dans l&apos;app</li>
+              <li><strong>Quantité / Prix</strong> : nombres (virgule ou point acceptés)</li>
+              <li><strong>Catégorie / Total</strong> : colonnes ignorées à l&apos;import</li>
+            </ul>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>
+              💡 Les doublons (même date, type, actif, compte, quantité et prix) sont automatiquement ignorés.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <button onClick={() => setShowImportInfo(false)} style={{ padding: 10, borderRadius: 7, border: '0.5px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                Annuler
+              </button>
+              <button onClick={() => { setShowImportInfo(false); importInputRef.current?.click() }} style={{ padding: 10, borderRadius: 7, border: 'none', background: 'var(--brand)', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                Choisir un fichier
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
