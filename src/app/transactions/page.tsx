@@ -54,44 +54,86 @@ export default function TransactionsPage() {
     setImportResult(null)
 
     const text = await file.text()
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-    // Ignorer l'en-tête
+    // Supprimer BOM éventuel
+    const clean = text.replace(/^﻿/, '')
+    const lines = clean.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
     const dataLines = lines.slice(1)
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Charger actifs et comptes pour matcher par nom
     const [{ data: assets }, { data: accounts }] = await Promise.all([
       supabase.from('assets').select('id, name').eq('user_id', user.id),
       supabase.from('accounts').select('id, name').eq('user_id', user.id),
     ])
 
+    // Détecter le séparateur : ; ou ,
+    const sep = lines[0]?.includes(';') ? ';' : ','
+
+    // Parser une ligne CSV (gère les guillemets et les deux séparateurs)
+    function parseLine(line: string): string[] {
+      const result: string[] = []
+      let cur = ''
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '"') { inQuotes = !inQuotes }
+        else if (ch === sep && !inQuotes) { result.push(cur.trim()); cur = '' }
+        else { cur += ch }
+      }
+      result.push(cur.trim())
+      return result
+    }
+
+    // Convertir un nombre FR (1 234,56 ou 1234.56) en float
+    function parseFR(val: string): number {
+      return parseFloat(val.replace(/\s/g, '').replace(',', '.'))
+    }
+
+    // Convertir une date dd/mm/yyyy ou yyyy-mm-dd en yyyy-mm-dd
+    function parseDate(val: string): string {
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(val)) {
+        const [d, m, y] = val.split('/')
+        return `${y}-${m}-${d}`
+      }
+      if (/^\d{2}-\d{2}-\d{4}$/.test(val)) {
+        const [d, m, y] = val.split('-')
+        return `${y}-${m}-${d}`
+      }
+      return val // déjà yyyy-mm-dd
+    }
+
     let ok = 0
     const errors: string[] = []
 
-    for (const line of dataLines) {
-      // Parser CSV (valeurs entre guillemets)
-      const cols = line.match(/"([^"]*)"/g)?.map(v => v.replace(/"/g, '')) ?? line.split(',')
-      const [date, type, assetName, , accountName, qty, price] = cols
+    for (let i = 0; i < dataLines.length; i++) {
+      const cols = parseLine(dataLines[i])
+      const [rawDate, type, assetName, , accountName, rawQty, rawPrice] = cols
 
-      const asset = assets?.find(a => a.name.toLowerCase() === assetName?.toLowerCase())
-      const account = accounts?.find(a => a.name.toLowerCase() === accountName?.toLowerCase())
+      const date = parseDate(rawDate?.trim() ?? '')
+      const qty = parseFR(rawQty ?? '')
+      const price = parseFR(rawPrice ?? '')
 
-      if (!asset) { errors.push(`Actif introuvable : "${assetName}" (ligne ignorée)`); continue }
-      if (!account) { errors.push(`Compte introuvable : "${accountName}" (ligne ignorée)`); continue }
-      if (!date || !qty || !price) { errors.push(`Données manquantes ligne : ${line}`); continue }
+      const asset = assets?.find(a => a.name.toLowerCase() === assetName?.toLowerCase().trim())
+      const account = accounts?.find(a => a.name.toLowerCase() === accountName?.toLowerCase().trim())
+
+      if (!asset) { errors.push(`Ligne ${i + 2} — Actif introuvable : "${assetName}"`); continue }
+      if (!account) { errors.push(`Ligne ${i + 2} — Compte introuvable : "${accountName}"`); continue }
+      if (!date || isNaN(qty) || isNaN(price)) { errors.push(`Ligne ${i + 2} — Données manquantes ou invalides`); continue }
+
+      const txType = type?.toLowerCase().trim()
+      const validType = ['achat', 'vente', 'dividende', 'interets'].includes(txType) ? txType : 'achat'
 
       const { error } = await supabase.from('transactions').insert({
         user_id: user.id,
         asset_id: asset.id,
         account_id: account.id,
-        type: type?.toLowerCase() === 'achat' ? 'achat' : 'vente',
+        type: validType,
         date,
-        quantity: parseFloat(qty),
-        price: parseFloat(price),
+        quantity: qty,
+        price,
       })
-      if (error) errors.push(`Erreur : ${error.message}`)
+      if (error) errors.push(`Ligne ${i + 2} — Erreur : ${error.message}`)
       else ok++
     }
 
@@ -106,18 +148,24 @@ export default function TransactionsPage() {
     const rows = transactions.map(tx => {
       const asset = (tx as any).asset
       const account = (tx as any).account
+      // Date au format dd/mm/yyyy pour Excel FR
+      const [y, m, d] = tx.date.split('-')
+      const dateStr = `${d}/${m}/${y}`
+      // Nombres avec virgule décimale pour Excel FR
+      const fmtNum = (n: number) => n.toFixed(4).replace('.', ',')
       return [
-        tx.date,
-        tx.type === 'achat' ? 'Achat' : 'Vente',
+        dateStr,
+        tx.type === 'achat' ? 'Achat' : tx.type === 'vente' ? 'Vente' : tx.type === 'dividende' ? 'Dividende' : 'Interets',
         asset?.name ?? '',
         asset?.category ?? '',
         account?.name ?? '',
-        tx.quantity.toString(),
-        tx.price.toString(),
-        (tx.quantity * tx.price).toFixed(2),
+        fmtNum(tx.quantity),
+        fmtNum(tx.price),
+        fmtNum(tx.quantity * tx.price),
       ]
     })
-    const csv = [header, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n')
+    // Séparateur ; pour Excel FR
+    const csv = [header, ...rows].map(r => r.map(v => `"${v}"`).join(';')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
