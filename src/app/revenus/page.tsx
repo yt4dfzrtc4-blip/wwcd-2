@@ -70,17 +70,25 @@ export default function RevenusPage() {
       if (!taux) continue
 
       const txs = (transactions ?? []).filter((t: any) => t.account_id === acc.id)
-      const solde = txs.reduce((sum: number, tx: any) => {
+      let solde = txs.reduce((sum: number, tx: any) => {
         const montant = tx.quantity * tx.price
         if (tx.type === 'achat' || tx.type === 'interets') return sum + montant
         if (tx.type === 'vente') return sum - montant
         return sum
       }, 0)
+
+      // Fallback : chercher un actif livret lié à ce compte avec solde manuel
+      if (!solde) {
+        const linkedAsset = (assets ?? []).find((a: any) =>
+          a.category === 'livret' && a.livret_mode === 'balance' && a.livret_balance
+        )
+        if (linkedAsset) solde = (linkedAsset as any).livret_balance ?? 0
+      }
       if (!solde) continue
 
       const annual = solde * (taux / 100)
       const monthly = Array(12).fill(0)
-      monthly[11] = annual // Livrets français : 31 déc
+      monthly[11] = annual
 
       result.push({
         name: acc.name,
@@ -88,6 +96,29 @@ export default function RevenusPage() {
         annualAmount: annual,
         monthlyBreakdown: monthly,
         detail: `${solde.toLocaleString('fr-FR')} € × ${taux} %`,
+        isEstimate: true,
+      })
+    }
+
+    // ── LIVRETS (actifs avec livret_mode=balance sans compte associé) ──
+    for (const asset of (assets ?? [])) {
+      if (asset.category !== 'livret') continue
+      if ((asset as any).livret_mode !== 'balance') continue
+      const solde = (asset as any).livret_balance ?? 0
+      const taux = (asset as any).livret_rate ?? 0
+      if (!solde || !taux) continue
+      // Éviter les doublons avec les comptes déjà traités
+      const alreadyCounted = (accounts ?? []).some((acc: any) => acc.type === 'livret' && acc.name === asset.name)
+      if (alreadyCounted) continue
+      const annual = solde * (taux / 100)
+      const monthly = Array(12).fill(0)
+      monthly[11] = annual
+      result.push({
+        name: asset.name,
+        type: 'livret',
+        annualAmount: annual,
+        monthlyBreakdown: monthly,
+        detail: `${solde.toLocaleString('fr-FR')} € × ${taux} % (solde manuel)`,
         isEstimate: true,
       })
     }

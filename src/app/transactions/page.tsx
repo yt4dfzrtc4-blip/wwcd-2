@@ -13,6 +13,15 @@ import { fr } from 'date-fns/locale'
 import * as XLSX from 'xlsx'
 import { useRef } from 'react'
 
+const TX_LABEL: Record<string, string> = {
+  achat: 'Achat', vente: 'Vente', dividende: 'Dividende',
+  interets: 'Intérêts', coupon: 'Coupon', remboursement: 'Remboursement',
+}
+const TX_COLOR: Record<string, string> = {
+  achat: 'var(--brand)', vente: 'var(--red)', dividende: 'var(--green)',
+  interets: 'var(--green)', coupon: '#EF9F27', remboursement: 'var(--green)',
+}
+
 export default function TransactionsPage() {
   const supabase = createClient()
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -165,7 +174,7 @@ export default function TransactionsPage() {
       const asset = (tx as any).asset
       const account = (tx as any).account
       const [y, m, d] = tx.date.split('-')
-      const typeLabel = tx.type === 'achat' ? 'Achat' : tx.type === 'vente' ? 'Vente' : tx.type === 'dividende' ? 'Dividende' : 'Interets'
+      const typeLabel = TX_LABEL[tx.type] ?? tx.type
       return [
         `${d}/${m}/${y}`,
         typeLabel,
@@ -352,15 +361,15 @@ export default function TransactionsPage() {
                     {format(parseISO(tx.date), mobile ? 'd MMM' : 'd MMM yyyy', { locale: fr })}
                   </span>
                   {!mobile && (
-                    <span style={{ fontWeight: 500, color: tx.type === 'achat' ? 'var(--green)' : 'var(--red)' }}>
-                      {tx.type === 'achat' ? 'Achat' : 'Vente'}
+                    <span style={{ fontWeight: 500, color: TX_COLOR[tx.type] ?? 'var(--muted)' }}>
+                      {TX_LABEL[tx.type] ?? tx.type}
                     </span>
                   )}
                   <div>
                     <p style={{ fontWeight: 500, fontSize: mobile ? 12 : 13 }}>{asset?.name ?? '–'}</p>
-                    <p style={{ fontSize: 10, color: mobile ? (tx.type === 'achat' ? 'var(--green)' : 'var(--red)') : 'var(--muted)' }}>
+                    <p style={{ fontSize: 10, color: mobile ? (TX_COLOR[tx.type] ?? 'var(--muted)') : 'var(--muted)' }}>
                       {mobile
-                        ? (tx.type === 'achat' ? 'Achat' : 'Vente')
+                        ? (TX_LABEL[tx.type] ?? tx.type)
                         : <>{account?.name} · <span className={`badge ${asset?.category ? getCategoryBadgeClass(asset.category) : ''}`}>{asset?.category ? getCategoryLabel(asset.category) : ''}</span></>
                       }
                     </p>
