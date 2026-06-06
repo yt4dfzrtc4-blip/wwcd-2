@@ -15,6 +15,7 @@ interface Account {
   type: string
   livret_rate: number
   cat_maturity_date: string | null
+  balance?: number
 }
 
 interface Transaction {
@@ -37,8 +38,10 @@ export default function CatPage() {
   const [showModal, setShowModal] = useState(false)
   const [editRate, setEditRate] = useState(false)
   const [editMaturity, setEditMaturity] = useState(false)
+  const [editCapital, setEditCapital] = useState(false)
   const [newRate, setNewRate] = useState('')
   const [newMaturity, setNewMaturity] = useState('')
+  const [newCapital, setNewCapital] = useState('')
   const [mobile, setMobile] = useState(false)
 
   useEffect(() => {
@@ -54,6 +57,7 @@ export default function CatPage() {
     setAccount(acc as Account)
     setNewRate(acc.livret_rate?.toString() ?? '0')
     setNewMaturity(acc.cat_maturity_date ?? '')
+    setNewCapital(acc.balance?.toString() ?? '')
 
     const { data: ast } = await supabase.from('assets').select('id')
       .eq('category', 'cat').eq('name', acc.name).single()
@@ -66,10 +70,11 @@ export default function CatPage() {
 
   useEffect(() => { loadData() }, [id])
 
-  const capital = transactions.reduce((sum, tx) => {
+  const capitalFromTx = transactions.reduce((sum, tx) => {
     const montant = tx.quantity * tx.price
     return tx.type === 'achat' ? sum + montant : sum - montant
   }, 0)
+  const capital = capitalFromTx || (account?.balance ?? 0)
 
   const taux = account?.livret_rate ?? 0
   const today = new Date()
@@ -92,6 +97,12 @@ export default function CatPage() {
   async function saveMaturity() {
     await supabase.from('accounts').update({ cat_maturity_date: newMaturity || null }).eq('id', id)
     setEditMaturity(false)
+    loadData()
+  }
+
+  async function saveCapital() {
+    await supabase.from('accounts').update({ balance: parseFloat(newCapital) || 0 }).eq('id', id)
+    setEditCapital(false)
     loadData()
   }
 
@@ -126,7 +137,19 @@ export default function CatPage() {
           {/* Capital */}
           <div style={card}>
             <p style={lbl}>Capital</p>
-            <p style={{ fontSize: mobile ? 17 : 22, fontWeight: 500, filter: privacy ? 'blur(7px)' : 'none' }}>{fmt(capital)}</p>
+            {editCapital ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="number" step="0.01" value={newCapital} onChange={e => setNewCapital(e.target.value)}
+                  style={{ width: 100, padding: '4px 8px', borderRadius: 6, border: '0.5px solid var(--border)', fontSize: 14, background: 'var(--bg)', color: 'var(--text)' }} autoFocus />
+                <button onClick={saveCapital} style={{ fontSize: 12, color: 'var(--brand)', background: 'none', border: 'none', cursor: 'pointer' }}>OK</button>
+                <button onClick={() => setEditCapital(false)} style={{ fontSize: 12, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <p style={{ fontSize: mobile ? 17 : 22, fontWeight: 500, filter: privacy ? 'blur(7px)' : 'none' }}>{fmt(capital)}</p>
+                {!transactions.length && <button onClick={() => setEditCapital(true)} style={{ fontSize: 11, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}>définir</button>}
+              </div>
+            )}
           </div>
 
           {/* Taux */}

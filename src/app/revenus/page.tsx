@@ -134,9 +134,10 @@ export default function RevenusPage() {
       if (maturity.getFullYear() !== year) continue
 
       const txs = (transactions ?? []).filter((t: any) => t.account_id === acc.id)
-      const capital = txs.reduce((sum: number, tx: any) => {
+      const capitalFromTx = txs.reduce((sum: number, tx: any) => {
         return tx.type === 'achat' ? sum + tx.quantity * tx.price : sum - tx.quantity * tx.price
       }, 0)
+      const capital = capitalFromTx || (acc as any).balance || 0
       if (!capital) continue
 
       const openDate = txs.length > 0 ? new Date(txs[0].date) : yearStart

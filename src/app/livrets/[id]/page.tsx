@@ -24,6 +24,7 @@ interface Account {
   name: string
   type: string
   livret_rate: number
+  balance?: number
 }
 
 export default function LivretPage() {
@@ -38,6 +39,8 @@ export default function LivretPage() {
   const [modalType, setModalType] = useState<'achat' | 'vente' | 'interets'>('achat')
   const [editRate, setEditRate] = useState(false)
   const [newRate, setNewRate] = useState('')
+  const [editBalance, setEditBalance] = useState(false)
+  const [newBalance, setNewBalance] = useState('')
   const [mobile, setMobile] = useState(false)
 
   useEffect(() => {
@@ -52,6 +55,7 @@ export default function LivretPage() {
     if (!acc) return
     setAccount(acc as Account)
     setNewRate(acc.livret_rate?.toString() ?? '0')
+    setNewBalance(acc.balance?.toString() ?? '')
 
     // Cherche l'actif du même nom que le compte
     const { data: ast } = await supabase.from('assets').select('id, name')
@@ -67,11 +71,13 @@ export default function LivretPage() {
 
   useEffect(() => { loadData() }, [id])
 
-  const solde = transactions.reduce((sum, tx) => {
+  const soldeTransactions = transactions.reduce((sum, tx) => {
     const montant = tx.quantity * tx.price
     if (tx.type === 'achat' || tx.type === 'interets') return sum + montant
     return sum - montant
   }, 0)
+  // Utiliser le solde manuel si pas de transactions
+  const solde = soldeTransactions || (account?.balance ?? 0)
 
   const today = new Date()
   const joursEcoules = differenceInDays(today, startOfYear(today))
@@ -93,6 +99,12 @@ export default function LivretPage() {
       livret_rate_updated_at: new Date().toISOString().split('T')[0],
     }).eq('id', id)
     setEditRate(false)
+    loadData()
+  }
+
+  async function saveBalance() {
+    await supabase.from('accounts').update({ balance: parseFloat(newBalance) || 0 }).eq('id', id)
+    setEditBalance(false)
     loadData()
   }
 
@@ -129,7 +141,20 @@ export default function LivretPage() {
         <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 1fr' : 'repeat(3, minmax(0,1fr))', gap: 10 }}>
           <div style={card}>
             <p style={lbl}>Solde actuel</p>
-            <p style={{ fontSize: mobile ? 17 : 22, fontWeight: 500, filter: privacy ? 'blur(7px)' : 'none' }}>{fmt(solde)}</p>
+            {editBalance ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="number" step="0.01" value={newBalance} onChange={e => setNewBalance(e.target.value)}
+                  style={{ width: 100, padding: '4px 8px', borderRadius: 6, border: '0.5px solid var(--border)', fontSize: 14, background: 'var(--bg)', color: 'var(--text)' }} autoFocus />
+                <button onClick={saveBalance} style={{ fontSize: 12, color: 'var(--brand)', background: 'none', border: 'none', cursor: 'pointer' }}>OK</button>
+                <button onClick={() => setEditBalance(false)} style={{ fontSize: 12, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <p style={{ fontSize: mobile ? 17 : 22, fontWeight: 500, filter: privacy ? 'blur(7px)' : 'none' }}>{fmt(solde)}</p>
+                {!transactions.length && <button onClick={() => setEditBalance(true)} style={{ fontSize: 11, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}>définir</button>}
+              </div>
+            )}
+            {!transactions.length && !solde && <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Cliquez &quot;définir&quot; pour saisir le solde</p>}
           </div>
           <div style={card}>
             <p style={lbl}>Taux annuel</p>
