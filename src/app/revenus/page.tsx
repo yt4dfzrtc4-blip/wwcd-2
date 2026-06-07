@@ -45,20 +45,22 @@ export default function RevenusPage() {
       supabase.from('transactions').select('*, asset:assets(name, category)').order('date', { ascending: true }),
     ])
 
-    // Auto-fetch dividend info from Yahoo for action/ETF assets with ticker
+    // Auto-fetch dividend info from Yahoo pour les actifs action/ETF (avec timeout 3s)
     const divInfoCache: Record<string, { dividendYield: number | null; frequency: string | null; month: number | null }> = {}
+    const tickerAssets = (assets ?? []).filter((a: any) => ['action', 'etf'].includes(a.category) && a.ticker)
     await Promise.all(
-      (assets ?? [])
-        .filter((a: any) => ['action', 'etf'].includes(a.category) && a.ticker)
-        .map(async (a: any) => {
-          try {
-            const r = await fetch(`/api/asset-info?ticker=${encodeURIComponent(a.ticker)}`)
-            const d = await r.json()
-            divInfoCache[a.id] = { dividendYield: d.dividendYield ?? null, frequency: d.frequency ?? null, month: d.month ?? null }
-          } catch {
-            divInfoCache[a.id] = { dividendYield: null, frequency: null, month: null }
-          }
-        })
+      tickerAssets.map(async (a: any) => {
+        try {
+          const controller = new AbortController()
+          const timer = setTimeout(() => controller.abort(), 3000)
+          const r = await fetch(`/api/asset-info?ticker=${encodeURIComponent(a.ticker)}`, { signal: controller.signal })
+          clearTimeout(timer)
+          const d = await r.json()
+          divInfoCache[a.id] = { dividendYield: d.dividendYield ?? null, frequency: d.frequency ?? null, month: d.month ?? null }
+        } catch {
+          divInfoCache[a.id] = { dividendYield: null, frequency: null, month: null }
+        }
+      })
     )
 
     const result: RevenueItem[] = []
