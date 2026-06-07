@@ -61,8 +61,14 @@ export function buildPositions(
   for (const [key, txs] of groups) {
     const [assetId, accountId] = key.split('__')
     const asset = assetMap.get(assetId)
-    const account = accountMap.get(accountId)
-    if (!asset || !account) continue
+    if (!asset) continue
+    const account = accountMap.get(accountId) ?? {
+      id: accountId ?? 'unknown',
+      name: 'Compte inconnu',
+      type: 'autre',
+      created_at: '',
+      user_id: '',
+    } as Account
 
     const { quantity, averagePrice, investedValue } = calculatePosition(txs)
     if (quantity <= 0) continue
