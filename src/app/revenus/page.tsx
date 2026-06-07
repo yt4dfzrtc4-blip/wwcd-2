@@ -42,7 +42,7 @@ export default function RevenusPage() {
     const [{ data: assets }, { data: accounts }, { data: transactions }] = await Promise.all([
       supabase.from('assets').select('*, prices(*)'),
       supabase.from('accounts').select('*'),
-      supabase.from('transactions').select('*, asset:assets(name, category)').order('date', { ascending: true }),
+      supabase.from('transactions').select('*, asset:assets(name, category)').order('date', { ascending: true }).limit(5000),
     ])
 
     // Auto-fetch dividend info from Yahoo pour les actifs action/ETF (avec timeout 3s)

@@ -95,6 +95,35 @@ export function buildPositions(
     })
   }
 
+  // Obligations sans transactions : utiliser obligation_nominal comme fallback
+  const assetsWithTx = new Set<string>()
+  for (const [key] of groups) assetsWithTx.add(key.split('__')[0])
+
+  const obligAccount = accounts.find(a => (a as any).type === 'obligations')
+    ?? { id: 'unknown', name: 'Inconnu', type: 'autre', created_at: '', user_id: '' } as Account
+
+  for (const asset of assets) {
+    if (asset.category !== 'obligation') continue
+    if (assetsWithTx.has(asset.id)) continue
+    const nominal = (asset as any).obligation_nominal ?? 0
+    if (!nominal) continue
+    const currentPrice = asset.prices?.price || 1.0
+    const currentValue = nominal * currentPrice
+    positions.push({
+      asset,
+      account: obligAccount,
+      quantity: nominal,
+      average_price: 1.0,
+      current_price: currentPrice,
+      current_value: currentValue,
+      invested_value: nominal,
+      pnl: currentValue - nominal,
+      pnl_pct: ((currentValue - nominal) / nominal) * 100,
+      day_change: currentValue * ((asset.prices?.change_pct ?? 0) / 100),
+      day_change_pct: asset.prices?.change_pct ?? 0,
+    })
+  }
+
   // Tri par valorisation décroissante
   return positions.sort((a, b) => b.current_value - a.current_value)
 }
