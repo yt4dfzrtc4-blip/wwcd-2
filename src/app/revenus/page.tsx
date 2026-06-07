@@ -77,13 +77,8 @@ export default function RevenusPage() {
         return sum
       }, 0)
 
-      // Fallback : chercher un actif livret lié à ce compte avec solde manuel
-      if (!solde) {
-        const linkedAsset = (assets ?? []).find((a: any) =>
-          a.category === 'livret' && a.livret_mode === 'balance' && a.livret_balance
-        )
-        if (linkedAsset) solde = (linkedAsset as any).livret_balance ?? 0
-      }
+      // Fallback : solde défini manuellement sur le compte
+      if (!solde) solde = (acc as any).balance || 0
       if (!solde) continue
 
       const annual = solde * (taux / 100)
