@@ -39,11 +39,27 @@ export default function RevenusPage() {
     const yearStart = new Date(year, 0, 1)
     const yearEnd = new Date(year, 11, 31)
 
-    const [{ data: assets }, { data: accounts }, { data: transactions }] = await Promise.all([
+    const [{ data: assets }, { data: accounts }] = await Promise.all([
       supabase.from('assets').select('*, prices(*)'),
       supabase.from('accounts').select('*'),
-      supabase.from('transactions').select('*, asset:assets(name, category)').order('date', { ascending: true }).limit(5000),
     ])
+
+    // Récupérer TOUTES les transactions par pages de 1000
+    const allTransactions: any[] = []
+    const PAGE = 1000
+    let from = 0
+    while (true) {
+      const { data: page } = await supabase
+        .from('transactions')
+        .select('*, asset:assets(name, category)')
+        .order('date', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (!page || page.length === 0) break
+      allTransactions.push(...page)
+      if (page.length < PAGE) break
+      from += PAGE
+    }
+    const transactions = allTransactions
 
     // Auto-fetch dividend info from Yahoo pour les actifs action/ETF (avec timeout 3s)
     const divInfoCache: Record<string, { dividendYield: number | null; frequency: string | null; month: number | null }> = {}

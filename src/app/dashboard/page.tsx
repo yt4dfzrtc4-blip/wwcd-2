@@ -36,13 +36,28 @@ export default function DashboardPage() {
   }, [])
 
   const loadData = useCallback(async () => {
-    const [{ data: transactions }, { data: assets }, { data: accounts }, { data: snaps }, { data: prices }] = await Promise.all([
-      supabase.from('transactions').select('*, asset:assets(*, prices(*)), account:accounts(*, bank:banks(*))'),
+    const [{ data: assets }, { data: accounts }, { data: snaps }, { data: prices }] = await Promise.all([
       supabase.from('assets').select('*, prices(*)'),
       supabase.from('accounts').select('*, bank:banks(*)'),
       supabase.from('snapshots').select('*').order('date', { ascending: true }),
       supabase.from('prices').select('updated_at').order('updated_at', { ascending: false }).limit(1),
     ])
+
+    // Récupérer TOUTES les transactions par pages
+    const allTransactions: any[] = []
+    const PAGE = 1000
+    let from = 0
+    while (true) {
+      const { data: page } = await supabase
+        .from('transactions')
+        .select('*, asset:assets(*, prices(*)), account:accounts(*, bank:banks(*))')
+        .range(from, from + PAGE - 1)
+      if (!page || page.length === 0) break
+      allTransactions.push(...page)
+      if (page.length < PAGE) break
+      from += PAGE
+    }
+    const transactions = allTransactions
 
     if (transactions && assets && accounts) {
       const positions = buildPositions(transactions as any, assets as any, accounts as any)
