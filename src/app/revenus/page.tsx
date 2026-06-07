@@ -100,16 +100,46 @@ export default function RevenusPage() {
       })
     }
 
-    // ── LIVRETS (actifs avec livret_mode=balance sans compte associé) ──
+    // ── LIVRETS (actifs avec livret_balance ou transactions) ──
     for (const asset of (assets ?? [])) {
       if (asset.category !== 'livret') continue
-      if ((asset as any).livret_mode !== 'balance') continue
-      const solde = (asset as any).livret_balance ?? 0
-      const taux = (asset as any).livret_rate ?? 0
-      if (!solde || !taux) continue
       // Éviter les doublons avec les comptes déjà traités
-      const alreadyCounted = (accounts ?? []).some((acc: any) => acc.type === 'livret' && acc.name === asset.name)
+      const alreadyCounted = result.some(r => r.type === 'livret' && r.name === asset.name)
       if (alreadyCounted) continue
+
+      // Taux : sur l'actif ou sur le compte du même nom
+      let taux = (asset as any).livret_rate ?? 0
+      if (!taux) {
+        const matchingAcc = (accounts ?? []).find((a: any) => a.type === 'livret' && a.name === asset.name)
+        taux = (matchingAcc as any)?.livret_rate ?? 0
+      }
+      if (!taux) continue
+
+      // Solde : livret_balance (mode balance) ou via transactions sur l'actif ou sur le compte
+      let solde = (asset as any).livret_balance ?? 0
+      if (!solde) {
+        const txsByAsset = (transactions ?? []).filter((t: any) => t.asset_id === asset.id)
+        solde = txsByAsset.reduce((sum: number, tx: any) => {
+          const montant = tx.quantity * tx.price
+          if (tx.type === 'achat' || tx.type === 'interets') return sum + montant
+          if (tx.type === 'vente') return sum - montant
+          return sum
+        }, 0)
+      }
+      if (!solde) {
+        const matchingAcc = (accounts ?? []).find((a: any) => a.type === 'livret' && a.name === asset.name)
+        if (matchingAcc) {
+          const txsByAcc = (transactions ?? []).filter((t: any) => t.account_id === (matchingAcc as any).id)
+          solde = txsByAcc.reduce((sum: number, tx: any) => {
+            const montant = tx.quantity * tx.price
+            if (tx.type === 'achat' || tx.type === 'interets') return sum + montant
+            if (tx.type === 'vente') return sum - montant
+            return sum
+          }, 0) || (matchingAcc as any).balance || 0
+        }
+      }
+      if (!solde) continue
+
       const annual = solde * (taux / 100)
       const monthly = Array(12).fill(0)
       monthly[11] = annual
@@ -118,7 +148,7 @@ export default function RevenusPage() {
         type: 'livret',
         annualAmount: annual,
         monthlyBreakdown: monthly,
-        detail: `${solde.toLocaleString('fr-FR')} € × ${taux} % (solde manuel)`,
+        detail: `${solde.toLocaleString('fr-FR')} € × ${taux} %`,
         isEstimate: true,
       })
     }
