@@ -19,6 +19,9 @@ export default function TransactionModal({ onClose, onSuccess, editTransaction }
   const [error, setError] = useState('')
   const [assetSearch, setAssetSearch] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    editTransaction?.asset_id ? '' : ''
+  )
 
   const [form, setForm] = useState({
     account_id: editTransaction?.account_id ?? '',
@@ -46,7 +49,7 @@ export default function TransactionModal({ onClose, onSuccess, editTransaction }
   useEffect(() => {
     if (editTransaction?.asset_id && assets.length > 0) {
       const a = assets.find(a => a.id === editTransaction.asset_id)
-      if (a) setAssetSearch(a.name)
+      if (a) { setAssetSearch(a.name); setSelectedCategory(a.category) }
     }
   }, [assets, editTransaction])
 
@@ -162,7 +165,7 @@ export default function TransactionModal({ onClose, onSuccess, editTransaction }
             <label style={labelStyle}>Actif</label>
             <input
               value={assetSearch}
-              onChange={e => { setAssetSearch(e.target.value); setShowDropdown(true); setForm(f => ({ ...f, asset_id: '' })) }}
+              onChange={e => { setAssetSearch(e.target.value); setShowDropdown(true); setForm(f => ({ ...f, asset_id: '' })); setSelectedCategory('') }}
               onFocus={() => setShowDropdown(true)}
               onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
               placeholder="Rechercher par nom, ISIN ou ticker…"
@@ -183,7 +186,7 @@ export default function TransactionModal({ onClose, onSuccess, editTransaction }
                 {filteredAssets.slice(0, 20).map(a => (
                   <div
                     key={a.id}
-                    onMouseDown={() => { setForm(f => ({ ...f, asset_id: a.id })); setAssetSearch(a.name); setShowDropdown(false) }}
+                    onMouseDown={() => { setForm(f => ({ ...f, asset_id: a.id })); setAssetSearch(a.name); setSelectedCategory(a.category); setShowDropdown(false) }}
                     style={{
                       padding: '9px 12px', cursor: 'pointer', fontSize: 13,
                       background: form.asset_id === a.id ? 'var(--brand-light)' : 'transparent',
@@ -203,7 +206,7 @@ export default function TransactionModal({ onClose, onSuccess, editTransaction }
           </div>
 
           {/* Avertissement obligation */}
-          {form.asset_id && assets.find(a => a.id === form.asset_id)?.category === 'obligation' && (
+          {form.asset_id && selectedCategory === 'obligation' && (
             <div style={{ background: '#FAEEDA', border: '0.5px solid #EF9F27', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#633806' }}>
               Les obligations ont une page dédiée avec les bons champs (nominal, prix %, coupons).{' '}
               <a href={`/obligations/${form.asset_id}`} style={{ color: '#633806', fontWeight: 600 }}>

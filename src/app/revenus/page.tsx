@@ -79,8 +79,13 @@ export default function RevenusPage() {
         return sum
       }, 0)
 
-      // Fallback : solde défini manuellement sur le compte
+      // Fallback : solde manuel sur le compte
       if (!solde) solde = (acc as any).balance || 0
+      // Fallback : livret_balance sur l'actif lié (même nom)
+      if (!solde) {
+        const linked = (assets ?? []).find((a: any) => a.category === 'livret' && a.name === acc.name)
+        if (linked) solde = (linked as any).livret_balance || 0
+      }
       if (!solde) continue
 
       const annual = solde * (taux / 100)
@@ -154,32 +159,42 @@ export default function RevenusPage() {
     for (const acc of (accounts ?? [])) {
       if (acc.type !== 'cat') continue
       const taux = (acc as any).livret_rate ?? 0
-      const maturityStr = (acc as any).cat_maturity_date
-      if (!taux || !maturityStr) continue
-
-      const maturity = new Date(maturityStr)
-      if (maturity.getFullYear() !== year) continue
+      if (!taux) continue
 
       const txs = (transactions ?? []).filter((t: any) => t.account_id === acc.id)
       const capitalFromTx = txs.reduce((sum: number, tx: any) => {
         return tx.type === 'achat' ? sum + tx.quantity * tx.price : sum - tx.quantity * tx.price
       }, 0)
-      const capital = capitalFromTx || (acc as any).balance || 0
+      let capital = capitalFromTx || (acc as any).balance || 0
+      // Fallback : chercher l'actif CAT lié par nom
+      if (!capital) {
+        const linked = (assets ?? []).find((a: any) => a.category === 'cat' && a.name === acc.name)
+        if (linked) capital = (linked as any).livret_balance || 0
+      }
       if (!capital) continue
 
-      const openDate = txs.length > 0 ? new Date(txs[0].date) : yearStart
-      const duree = differenceInDays(maturity, openDate)
-      const interet = capital * (taux / 100) * (duree / 365)
+      const maturityStr = (acc as any).cat_maturity_date
+      const maturity = maturityStr ? new Date(maturityStr) : null
 
-      const monthly = Array(12).fill(0)
-      monthly[maturity.getMonth()] = interet
+      // Calcul de l'intérêt : si on connaît l'échéance, prorata de la durée ; sinon intérêt annuel
+      let interet: number
+      let monthly = Array(12).fill(0)
+      if (maturity) {
+        const openDate = txs.length > 0 ? new Date(txs[0].date) : yearStart
+        const duree = differenceInDays(maturity, openDate)
+        interet = capital * (taux / 100) * (duree / 365)
+        monthly[maturity.getMonth()] = interet
+      } else {
+        interet = capital * (taux / 100)
+        monthly[11] = interet
+      }
 
       result.push({
         name: acc.name,
         type: 'cat',
         annualAmount: interet,
         monthlyBreakdown: monthly,
-        detail: `${capital.toLocaleString('fr-FR')} € × ${taux} % — échéance ${format(maturity, 'd MMM', { locale: fr })}`,
+        detail: `${capital.toLocaleString('fr-FR')} € × ${taux} %${maturity ? ` — échéance ${format(maturity, 'd MMM yyyy', { locale: fr })}` : ''}`,
         isEstimate: true,
       })
     }
@@ -285,7 +300,12 @@ export default function RevenusPage() {
         - txs.filter((t: any) => t.type === 'vente').reduce((s: number, t: any) => s + t.quantity, 0)
       if (qty <= 0) continue
 
-      const currentPrice = (asset as any).prices?.price ?? 0
+      // Utiliser le cours actuel, sinon le PRU calculé depuis les transactions
+      const rawPrice = (asset as any).prices?.price
+      const totalCost = txs.filter((t: any) => t.type === 'achat').reduce((s: number, t: any) => s + t.quantity * t.price, 0)
+      const totalQty = txs.filter((t: any) => t.type === 'achat').reduce((s: number, t: any) => s + t.quantity, 0)
+      const avgPrice = totalQty > 0 ? totalCost / totalQty : 0
+      const currentPrice = rawPrice || avgPrice
       if (!currentPrice) continue
 
       const annualDiv = qty * currentPrice * (dyield / 100)

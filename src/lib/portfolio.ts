@@ -20,7 +20,7 @@ export function calculatePosition(transactions: Transaction[]): {
     if (tx.type === 'achat') {
       totalCost += tx.quantity * tx.price
       quantity += tx.quantity
-    } else if (tx.type === 'vente') {
+    } else if (tx.type === 'vente' || tx.type === 'remboursement') {
       // Vente : on réduit la quantité, le PRU ne change pas
       const soldRatio = tx.quantity / quantity
       totalCost -= totalCost * soldRatio
@@ -73,7 +73,7 @@ export function buildPositions(
     const { quantity, averagePrice, investedValue } = calculatePosition(txs)
     if (quantity <= 0) continue
 
-    const currentPrice = asset.prices?.price ?? averagePrice
+    const currentPrice = asset.prices?.price || averagePrice
     const currentValue = quantity * currentPrice
     const pnl = currentValue - investedValue
     const pnlPct = investedValue > 0 ? (pnl / investedValue) * 100 : 0
