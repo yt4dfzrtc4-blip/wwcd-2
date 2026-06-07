@@ -35,6 +35,7 @@ export default function TransactionsPage() {
   const [importResult, setImportResult] = useState<{ ok: number; skipped: number; errors: string[] } | null>(null)
   const [showImportInfo, setShowImportInfo] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [removingDupes, setRemovingDupes] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -121,14 +122,23 @@ export default function TransactionsPage() {
 
     const dataRows = rows.slice(1).filter(r => r.some(c => c !== ''))
 
-    // Charger les transactions existantes pour déduplication
-    const { data: existing } = await supabase
-      .from('transactions')
-      .select('date, type, asset_id, account_id, quantity, price')
-      .eq('user_id', user.id)
+    // Charger TOUTES les transactions existantes pour déduplication (pagination)
+    const allExisting: any[] = []
+    let exFrom = 0
+    while (true) {
+      const { data: exPage } = await supabase
+        .from('transactions')
+        .select('date, type, asset_id, account_id, quantity, price')
+        .eq('user_id', user.id)
+        .range(exFrom, exFrom + 999)
+      if (!exPage || exPage.length === 0) break
+      allExisting.push(...exPage)
+      if (exPage.length < 1000) break
+      exFrom += 1000
+    }
 
     const existingSet = new Set(
-      (existing ?? []).map(t => `${t.date}|${t.type}|${t.asset_id}|${t.account_id}|${t.quantity}|${t.price}`)
+      allExisting.map(t => `${t.date}|${t.type}|${t.asset_id}|${t.account_id}|${t.quantity}|${t.price}`)
     )
 
     let ok = 0, skipped = 0
@@ -189,6 +199,45 @@ export default function TransactionsPage() {
     return { header, rows }
   }
 
+  async function removeDuplicates() {
+    if (!confirm('Supprimer tous les doublons de transactions ? Cette action est irréversible.')) return
+    setRemovingDupes(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    // Charger toutes les transactions
+    const all: any[] = []
+    let from = 0
+    while (true) {
+      const { data: page } = await supabase.from('transactions')
+        .select('id, date, type, asset_id, account_id, quantity, price')
+        .eq('user_id', user.id).order('created_at', { ascending: true }).range(from, from + 999)
+      if (!page || page.length === 0) break
+      all.push(...page)
+      if (page.length < 1000) break
+      from += 1000
+    }
+
+    const seen = new Set<string>()
+    const toDelete: string[] = []
+    for (const t of all) {
+      const key = `${t.date}|${t.type}|${t.asset_id}|${t.account_id}|${t.quantity}|${t.price}`
+      if (seen.has(key)) toDelete.push(t.id)
+      else seen.add(key)
+    }
+
+    if (toDelete.length === 0) { alert('Aucun doublon trouvé.'); setRemovingDupes(false); return }
+
+    // Supprimer par lots de 100
+    for (let i = 0; i < toDelete.length; i += 100) {
+      await supabase.from('transactions').delete().in('id', toDelete.slice(i, i + 100))
+    }
+
+    alert(`${toDelete.length} doublon(s) supprimé(s).`)
+    setRemovingDupes(false)
+    loadData()
+  }
+
   function exportXLSX() {
     const { header, rows } = buildExportData()
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows])
@@ -247,6 +296,17 @@ export default function TransactionsPage() {
               <Upload size={14} /> {!mobile && (importing ? 'Import…' : 'Importer')}
             </button>
             <input ref={importInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={importFile} style={{ display: 'none' }} />
+
+            {/* Bouton supprimer doublons */}
+            <button onClick={removeDuplicates} disabled={removingDupes} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 12px', borderRadius: 8,
+              background: 'var(--surface)', color: 'var(--red)',
+              border: '0.5px solid var(--border)', fontSize: 13,
+              cursor: 'pointer', fontFamily: 'var(--font-sans)',
+            }}>
+              {removingDupes ? 'Nettoyage…' : '✕ Doublons'}
+            </button>
 
             {/* Bouton Export avec menu */}
             {transactions.length > 0 && (
