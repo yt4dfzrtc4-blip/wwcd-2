@@ -198,9 +198,16 @@ export default function RevenusPage() {
       let monthly = Array(12).fill(0)
       if (maturity) {
         const openDate = txs.length > 0 ? new Date(txs[0].date) : yearStart
-        const duree = differenceInDays(maturity, openDate)
-        interet = capital * (taux / 100) * (duree / 365)
-        monthly[maturity.getMonth()] = interet
+        // Calcul sur la portion de l'année en cours seulement
+        const debutAnnee = new Date(year, 0, 1)
+        const finAnnee = new Date(year, 11, 31)
+        const debut = openDate > debutAnnee ? openDate : debutAnnee
+        const fin = maturity < finAnnee ? maturity : finAnnee
+        if (fin < debut) continue  // CAT non actif cette année
+        const joursAnnee = differenceInDays(fin, debut) + 1
+        interet = capital * (taux / 100) * (joursAnnee / 365)
+        // Placer au mois de l'échéance si elle tombe cette année, sinon en décembre
+        monthly[maturity.getFullYear() === year ? maturity.getMonth() : 11] = interet
       } else {
         interet = capital * (taux / 100)
         monthly[11] = interet
