@@ -24,7 +24,6 @@ export default function RevenusPage() {
   const [items, setItems] = useState<RevenueItem[]>([])
   const [loading, setLoading] = useState(true)
   const [mobile, setMobile] = useState(false)
-  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   useEffect(() => {
     const check = () => setMobile(window.innerWidth < 640)
@@ -64,27 +63,6 @@ export default function RevenusPage() {
       })
     )
 
-    // ── DEBUG ── à supprimer après diagnostic
-    const livretAccIds = new Set((accounts ?? []).filter((a: any) => a.type === 'livret').map((a: any) => a.id))
-    const livretAssetIds = new Set((assets ?? []).filter((a: any) => a.category === 'livret').map((a: any) => a.id))
-    const livretTxs = (transactions ?? []).filter((t: any) => livretAccIds.has(t.account_id) || livretAssetIds.has(t.asset_id))
-    setDebugInfo({
-      livretAccounts: (accounts ?? []).filter((a: any) => a.type === 'livret').map((a: any) => ({
-        name: a.name, taux: a.livret_rate, balance: a.balance,
-        txCount: (transactions ?? []).filter((t: any) => t.account_id === a.id).length,
-      })),
-      catAccounts: (accounts ?? []).filter((a: any) => a.type === 'cat').map((a: any) => ({
-        name: a.name, taux: a.livret_rate, balance: a.balance, echeance: a.cat_maturity_date,
-        txCount: (transactions ?? []).filter((t: any) => t.account_id === a.id).length,
-      })),
-      livretAssets: (assets ?? []).filter((a: any) => a.category === 'livret').map((a: any) => ({
-        name: a.name, taux: a.livret_rate, balance: a.livret_balance, mode: a.livret_mode,
-        txCount: (transactions ?? []).filter((t: any) => t.asset_id === a.id).length,
-      })),
-      livretTxSample: livretTxs.slice(0, 5).map((t: any) => ({ type: t.type, qty: t.quantity, price: t.price, accId: t.account_id?.slice(0,8), assetId: t.asset_id?.slice(0,8) })),
-      obligAssets: (assets ?? []).filter((a: any) => a.category === 'obligation').map((a: any) => ({ name: a.name, coupon: a.obligation_coupon, nominal: a.obligation_nominal })),
-      txCount: (transactions ?? []).length,
-    })
 
     const result: RevenueItem[] = []
 
@@ -255,9 +233,10 @@ export default function RevenusPage() {
 
       // Estimation si pas encore de coupons enregistrés
       if (!coupon) continue
-      // qty = nominal total détenu en € (la quantité dans les transactions obligation = nominal en €)
-      const qty = txs.filter((t: any) => t.type === 'achat').reduce((s: number, t: any) => s + t.quantity, 0)
+      // qty = nominal total détenu en € (depuis les transactions ou fallback sur obligation_nominal)
+      let qty = txs.filter((t: any) => t.type === 'achat').reduce((s: number, t: any) => s + t.quantity, 0)
         - txs.filter((t: any) => t.type === 'vente' || t.type === 'remboursement').reduce((s: number, t: any) => s + t.quantity, 0)
+      if (!qty && nominal > 0) qty = nominal  // fallback sur le nominal renseigné dans l'actif
       if (!qty) continue
 
       const couponAnnuel = qty * (coupon / 100)
@@ -495,41 +474,6 @@ export default function RevenusPage() {
           💡 Les dividendes sont estimés automatiquement si vous renseignez un <strong>rendement dividende</strong> sur l&apos;actif (Actions & ETF). Pour enregistrer un dividende réel reçu : Transactions → type <strong>Dividende</strong>.
         </div>
 
-        {/* ── BLOC DEBUG TEMPORAIRE ── */}
-        {debugInfo && (
-          <div style={{ background: '#1a1a2e', border: '1px solid #444', borderRadius: 10, padding: 16, fontSize: 11, fontFamily: 'monospace', color: '#e0e0e0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-            <p style={{ color: '#ff6b6b', fontWeight: 700, marginBottom: 8 }}>🔧 DEBUG — À SUPPRIMER</p>
-            <p style={{ color: '#ffd93d', marginBottom: 4 }}>Comptes livret ({debugInfo.livretAccounts.length}) :</p>
-            {debugInfo.livretAccounts.length === 0 && <p style={{ color: '#888' }}>  aucun</p>}
-            {debugInfo.livretAccounts.map((a: any, i: number) => (
-              <p key={i} style={{ marginLeft: 8 }}>{a.name} · taux={String(a.taux)} · balance={String(a.balance)} · <strong style={{color:'#6bffb8'}}>tx={a.txCount}</strong></p>
-            ))}
-            <p style={{ color: '#ffd93d', marginBottom: 4, marginTop: 8 }}>Comptes CAT ({debugInfo.catAccounts.length}) :</p>
-            {debugInfo.catAccounts.length === 0 && <p style={{ color: '#888' }}>  aucun</p>}
-            {debugInfo.catAccounts.map((a: any, i: number) => (
-              <p key={i} style={{ marginLeft: 8 }}>{a.name} · taux={String(a.taux)} · balance={String(a.balance)} · échéance={String(a.echeance)} · <strong style={{color:'#6bffb8'}}>tx={a.txCount}</strong></p>
-            ))}
-            <p style={{ color: '#ffd93d', marginBottom: 4, marginTop: 8 }}>Actifs livret ({debugInfo.livretAssets.length}) :</p>
-            {debugInfo.livretAssets.length === 0 && <p style={{ color: '#888' }}>  aucun</p>}
-            {debugInfo.livretAssets.map((a: any, i: number) => (
-              <p key={i} style={{ marginLeft: 8 }}>{a.name} · taux={String(a.taux)} · balance={String(a.balance)} · mode={String(a.mode)} · <strong style={{color:'#6bffb8'}}>tx={a.txCount}</strong></p>
-            ))}
-            {debugInfo.livretTxSample?.length > 0 && (
-              <>
-                <p style={{ color: '#ffd93d', marginBottom: 4, marginTop: 8 }}>Échantillon tx livret :</p>
-                {debugInfo.livretTxSample.map((t: any, i: number) => (
-                  <p key={i} style={{ marginLeft: 8 }}>{t.type} · qty={t.qty} · price={t.price} · acc={t.accId} · asset={t.assetId}</p>
-                ))}
-              </>
-            )}
-            <p style={{ color: '#ffd93d', marginBottom: 4, marginTop: 8 }}>Actifs obligation ({debugInfo.obligAssets.length}) :</p>
-            {debugInfo.obligAssets.length === 0 && <p style={{ color: '#888' }}>  aucun</p>}
-            {debugInfo.obligAssets.map((a: any, i: number) => (
-              <p key={i} style={{ marginLeft: 8 }}>{a.name} · coupon={String(a.coupon)} · nominal={String(a.nominal)}</p>
-            ))}
-            <p style={{ color: '#ffd93d', marginTop: 8 }}>Transactions total : {debugInfo.txCount}</p>
-          </div>
-        )}
       </main>
     </div>
   )
