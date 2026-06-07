@@ -24,6 +24,7 @@ export default function RevenusPage() {
   const [items, setItems] = useState<RevenueItem[]>([])
   const [loading, setLoading] = useState(true)
   const [mobile, setMobile] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   useEffect(() => {
     const check = () => setMobile(window.innerWidth < 640)
@@ -62,6 +63,15 @@ export default function RevenusPage() {
         }
       })
     )
+
+    // ── DEBUG ── à supprimer après diagnostic
+    setDebugInfo({
+      livretAccounts: (accounts ?? []).filter((a: any) => a.type === 'livret').map((a: any) => ({ name: a.name, taux: a.livret_rate, balance: a.balance })),
+      catAccounts: (accounts ?? []).filter((a: any) => a.type === 'cat').map((a: any) => ({ name: a.name, taux: a.livret_rate, balance: a.balance, echeance: a.cat_maturity_date })),
+      livretAssets: (assets ?? []).filter((a: any) => a.category === 'livret').map((a: any) => ({ name: a.name, taux: a.livret_rate, balance: a.livret_balance, mode: a.livret_mode })),
+      obligAssets: (assets ?? []).filter((a: any) => a.category === 'obligation').map((a: any) => ({ name: a.name, coupon: a.obligation_coupon, nominal: a.obligation_nominal })),
+      txCount: (transactions ?? []).length,
+    })
 
     const result: RevenueItem[] = []
 
@@ -471,6 +481,34 @@ export default function RevenusPage() {
         <div style={{ background: 'var(--bg)', border: '0.5px solid var(--border)', borderRadius: 10, padding: '12px 16px', fontSize: 12, color: 'var(--muted)' }}>
           💡 Les dividendes sont estimés automatiquement si vous renseignez un <strong>rendement dividende</strong> sur l&apos;actif (Actions & ETF). Pour enregistrer un dividende réel reçu : Transactions → type <strong>Dividende</strong>.
         </div>
+
+        {/* ── BLOC DEBUG TEMPORAIRE ── */}
+        {debugInfo && (
+          <div style={{ background: '#1a1a2e', border: '1px solid #444', borderRadius: 10, padding: 16, fontSize: 11, fontFamily: 'monospace', color: '#e0e0e0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+            <p style={{ color: '#ff6b6b', fontWeight: 700, marginBottom: 8 }}>🔧 DEBUG — À SUPPRIMER</p>
+            <p style={{ color: '#ffd93d', marginBottom: 4 }}>Comptes livret ({debugInfo.livretAccounts.length}) :</p>
+            {debugInfo.livretAccounts.length === 0 && <p style={{ color: '#888' }}>  aucun</p>}
+            {debugInfo.livretAccounts.map((a: any, i: number) => (
+              <p key={i} style={{ marginLeft: 8 }}>{a.name} · taux={String(a.taux)} · balance={String(a.balance)}</p>
+            ))}
+            <p style={{ color: '#ffd93d', marginBottom: 4, marginTop: 8 }}>Comptes CAT ({debugInfo.catAccounts.length}) :</p>
+            {debugInfo.catAccounts.length === 0 && <p style={{ color: '#888' }}>  aucun</p>}
+            {debugInfo.catAccounts.map((a: any, i: number) => (
+              <p key={i} style={{ marginLeft: 8 }}>{a.name} · taux={String(a.taux)} · balance={String(a.balance)} · échéance={String(a.echeance)}</p>
+            ))}
+            <p style={{ color: '#ffd93d', marginBottom: 4, marginTop: 8 }}>Actifs livret ({debugInfo.livretAssets.length}) :</p>
+            {debugInfo.livretAssets.length === 0 && <p style={{ color: '#888' }}>  aucun</p>}
+            {debugInfo.livretAssets.map((a: any, i: number) => (
+              <p key={i} style={{ marginLeft: 8 }}>{a.name} · taux={String(a.taux)} · balance={String(a.balance)} · mode={String(a.mode)}</p>
+            ))}
+            <p style={{ color: '#ffd93d', marginBottom: 4, marginTop: 8 }}>Actifs obligation ({debugInfo.obligAssets.length}) :</p>
+            {debugInfo.obligAssets.length === 0 && <p style={{ color: '#888' }}>  aucun</p>}
+            {debugInfo.obligAssets.map((a: any, i: number) => (
+              <p key={i} style={{ marginLeft: 8 }}>{a.name} · coupon={String(a.coupon)} · nominal={String(a.nominal)}</p>
+            ))}
+            <p style={{ color: '#ffd93d', marginTop: 8 }}>Transactions total : {debugInfo.txCount}</p>
+          </div>
+        )}
       </main>
     </div>
   )
