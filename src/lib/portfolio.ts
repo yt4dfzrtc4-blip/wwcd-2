@@ -58,10 +58,13 @@ export function buildPositions(
 
   const positions: Position[] = []
 
+  // Passe 1 : actifs NON-obligations via transactions
   for (const [key, txs] of groups) {
     const [assetId, accountId] = key.split('__')
     const asset = assetMap.get(assetId)
     if (!asset) continue
+    if (asset.category === 'obligation') continue  // obligations gérées séparément
+
     const account = accountMap.get(accountId) ?? {
       id: accountId ?? 'unknown',
       name: 'Compte inconnu',
@@ -95,32 +98,35 @@ export function buildPositions(
     })
   }
 
-  // Obligations sans transactions : utiliser obligation_nominal comme fallback
-  const assetsWithTx = new Set<string>()
-  for (const [key] of groups) assetsWithTx.add(key.split('__')[0])
-
+  // Passe 2 : obligations directement via obligation_nominal (modèle simplifié)
   const obligAccount = accounts.find(a => (a as any).type === 'obligations')
-    ?? { id: 'unknown', name: 'Inconnu', type: 'autre', created_at: '', user_id: '' } as Account
+    ?? { id: 'unknown', name: 'Obligations', type: 'autre', created_at: '', user_id: '' } as Account
 
   for (const asset of assets) {
     if (asset.category !== 'obligation') continue
-    if (assetsWithTx.has(asset.id)) continue
     const nominal = (asset as any).obligation_nominal ?? 0
     if (!nominal) continue
-    const currentPrice = asset.prices?.price || 1.0
-    const currentValue = nominal * currentPrice
+
+    // Prix d'achat moyen en % (ex: 98.5 → 0.985)
+    const avgPricePct = (asset as any).obligation_avg_price ?? 100
+    const avgPrice = avgPricePct / 100
+    const investedValue = nominal * avgPrice
+
+    // Valeur actuelle : nominal (les obligations cotent près du pair sans prix live)
+    const currentValue = nominal
+
     positions.push({
       asset,
       account: obligAccount,
       quantity: nominal,
-      average_price: 1.0,
-      current_price: currentPrice,
+      average_price: avgPrice,
+      current_price: 1.0,
       current_value: currentValue,
-      invested_value: nominal,
-      pnl: currentValue - nominal,
-      pnl_pct: ((currentValue - nominal) / nominal) * 100,
-      day_change: currentValue * ((asset.prices?.change_pct ?? 0) / 100),
-      day_change_pct: asset.prices?.change_pct ?? 0,
+      invested_value: investedValue,
+      pnl: currentValue - investedValue,
+      pnl_pct: investedValue > 0 ? ((currentValue - investedValue) / investedValue) * 100 : 0,
+      day_change: 0,
+      day_change_pct: 0,
     })
   }
 

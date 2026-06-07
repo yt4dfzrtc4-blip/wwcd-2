@@ -340,6 +340,7 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
     obligation_frequency: (asset as any)?.obligation_frequency ?? 'annuelle',
     obligation_maturity: (asset as any)?.obligation_maturity ?? '',
     obligation_nominal: (asset as any)?.obligation_nominal?.toString() ?? '',
+    obligation_avg_price: (asset as any)?.obligation_avg_price?.toString() ?? '100',
     dividend_yield: (asset as any)?.dividend_yield?.toString() ?? '',
     dividend_frequency: (asset as any)?.dividend_frequency ?? 'annuelle',
     dividend_month: (asset as any)?.dividend_month?.toString() ?? '1',
@@ -393,6 +394,7 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
       obligation_frequency: showObligationOptions ? form.obligation_frequency : null,
       obligation_maturity: showObligationOptions && form.obligation_maturity ? form.obligation_maturity : null,
       obligation_nominal: showObligationOptions && form.obligation_nominal ? parseFloat(form.obligation_nominal) : null,
+      obligation_avg_price: showObligationOptions && form.obligation_avg_price ? parseFloat(form.obligation_avg_price) : null,
       dividend_yield: showDividendOptions && form.dividend_yield ? parseFloat(form.dividend_yield) : null,
       dividend_frequency: showDividendOptions ? form.dividend_frequency : null,
       dividend_month: showDividendOptions && form.dividend_month ? parseInt(form.dividend_month) : null,
@@ -455,6 +457,10 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
           <Field label="ISIN (optionnel)"><input value={form.isin} onChange={e => setForm(f => ({ ...f, isin: e.target.value }))} placeholder="FR0011869353" style={inp} /></Field>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <Field label="Taux coupon (%)"><input type="number" step="0.01" value={form.obligation_coupon} onChange={e => setForm(f => ({ ...f, obligation_coupon: e.target.value }))} placeholder="3.5" style={inp} /></Field>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <Field label="Nominal détenu (€)"><input type="number" step="1" value={form.obligation_nominal} onChange={e => setForm(f => ({ ...f, obligation_nominal: e.target.value }))} placeholder="10000" style={inp} /></Field>
+            <Field label="Prix d'achat moyen (%)"><input type="number" step="0.01" value={form.obligation_avg_price} onChange={e => setForm(f => ({ ...f, obligation_avg_price: e.target.value }))} placeholder="98.5" style={inp} /></Field>
+          </div>
             <Field label="Fréquence">
               <select value={form.obligation_frequency} onChange={e => setForm(f => ({ ...f, obligation_frequency: e.target.value }))} style={inp}>
                 <option value="annuelle">Annuelle</option>
