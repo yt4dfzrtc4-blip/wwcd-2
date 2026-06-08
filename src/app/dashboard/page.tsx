@@ -18,8 +18,8 @@ export default function DashboardPage() {
   const router = useRouter()
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
-  const [byBank, setByBank] = useState<{ name: string; value: number }[]>([])
-  const [byAccount, setByAccount] = useState<{ name: string; bank: string; value: number }[]>([])
+  const [byBank, setByBank] = useState<{ id: string; name: string; value: number }[]>([])
+  const [byAccount, setByAccount] = useState<{ id: string; name: string; bank: string; bankId: string; value: number }[]>([])
   const { privacy, togglePrivacy } = usePrivacy()
   const [refreshing, setRefreshing] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -65,14 +65,16 @@ export default function DashboardPage() {
       setSummary(s)
 
       // Répartition par compte
-      const accountMap: Record<string, { name: string; bank: string; value: number }> = {}
+      const accountMap: Record<string, { id: string; name: string; bank: string; bankId: string; value: number }> = {}
       for (const pos of positions) {
         const acc = pos.account as any
         const key = acc.id
         if (!accountMap[key]) {
           accountMap[key] = {
+            id: acc.id,
             name: acc.name,
             bank: acc.bank?.name ?? '–',
+            bankId: acc.bank?.id ?? '',
             value: 0,
           }
         }
@@ -82,10 +84,10 @@ export default function DashboardPage() {
       setByAccount(accountList)
 
       // Répartition par banque
-      const bankMap: Record<string, { name: string; value: number }> = {}
+      const bankMap: Record<string, { id: string; name: string; value: number }> = {}
       for (const acc of accountList) {
-        const key = acc.bank
-        if (!bankMap[key]) bankMap[key] = { name: key, value: 0 }
+        const key = acc.bankId || acc.bank
+        if (!bankMap[key]) bankMap[key] = { id: acc.bankId, name: acc.bank, value: 0 }
         bankMap[key].value += acc.value
       }
       setByBank(Object.values(bankMap).sort((a, b) => b.value - a.value))
@@ -166,8 +168,13 @@ export default function DashboardPage() {
               <p style={sectionLabel}>Par banque</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
                 {byBank.map(b => (
-                  <div key={b.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 13, flex: 1, color: 'var(--text)' }}>{b.name}</span>
+                  <div key={b.name}
+                    onClick={() => b.id && router.push(`/banks/${b.id}`)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: b.id ? 'pointer' : 'default', borderRadius: 7, padding: '4px 0' }}
+                    onMouseEnter={e => b.id && (e.currentTarget.style.opacity = '0.75')}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                  >
+                    <span style={{ fontSize: 13, flex: 1, color: 'var(--text)', fontWeight: 500 }}>{b.name}</span>
                     <span style={{ fontSize: 13, fontWeight: 500, filter: privacy ? 'blur(6px)' : 'none' }}>{formatEur(b.value, 0)}</span>
                     <span style={{ fontSize: 11, color: 'var(--muted)', minWidth: 36, textAlign: 'right' }}>
                       {totalValue > 0 ? `${((b.value / totalValue) * 100).toFixed(0)} %` : '–'}
@@ -184,9 +191,14 @@ export default function DashboardPage() {
               <p style={sectionLabel}>Par compte</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
                 {byAccount.map(a => (
-                  <div key={a.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div key={a.id}
+                    onClick={() => router.push(`/accounts/${a.id}`)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', borderRadius: 7, padding: '4px 0' }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = '0.75')}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                  >
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 13, color: 'var(--text)' }}>{a.name}</span>
+                      <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{a.name}</span>
                       <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>{a.bank}</span>
                     </div>
                     <span style={{ fontSize: 13, fontWeight: 500, filter: privacy ? 'blur(6px)' : 'none' }}>{formatEur(a.value, 0)}</span>

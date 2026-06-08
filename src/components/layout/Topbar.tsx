@@ -8,17 +8,30 @@ import { LayoutDashboard, ArrowLeftRight, TrendingUp, Eye, EyeOff, RefreshCw, Lo
 interface TopbarProps {
   privacy: boolean
   onTogglePrivacy: () => void
-  onRefresh: () => void
+  onRefresh?: () => void
   refreshing?: boolean
   mobile?: boolean
 }
 
-export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing, mobile: mobileProp }: TopbarProps) {
+export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing: refreshingProp, mobile: mobileProp }: TopbarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
   const [isMobile, setIsMobile] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    try {
+      await fetch('/api/prices/refresh', { method: 'POST' })
+      if (onRefresh) await onRefresh()
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const isRefreshing = refreshingProp ?? refreshing
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640)
@@ -91,14 +104,14 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
         {/* Actions desktop */}
         {!mobile && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button onClick={onRefresh} title="Actualiser les cours" style={{
+            <button onClick={handleRefresh} title="Actualiser les cours" style={{
               display: 'flex', alignItems: 'center', gap: 5,
               padding: '5px 10px', borderRadius: 7,
               border: '0.5px solid var(--border)',
               background: 'transparent', color: 'var(--muted)',
               fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
             }}>
-              <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+              <RefreshCw size={13} style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
               <span>Actualiser</span>
             </button>
             <button onClick={onTogglePrivacy} title="Mode confidentialité" style={{
@@ -121,12 +134,12 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
         {/* Actions mobile */}
         {mobile && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button onClick={onRefresh} title="Actualiser les cours" style={{
+            <button onClick={handleRefresh} title="Actualiser les cours" style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 36, height: 36, borderRadius: 7, border: 'none', background: 'transparent',
               color: 'var(--muted)', cursor: 'pointer',
             }}>
-              <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+              <RefreshCw size={16} style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
             </button>
             <button onClick={onTogglePrivacy} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
