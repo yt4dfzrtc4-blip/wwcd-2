@@ -185,25 +185,28 @@ export default function DashboardPage() {
             <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
               <p style={sectionLabel}>Par compte</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                {byAccount.map(a => (
-                  <div key={a.id}
-                    onClick={() => router.push(`/accounts/${a.id}`)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', borderRadius: 7, padding: '4px 0' }}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = '0.75')}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{a.name}</span>
-                      <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>{a.bank}</span>
+                {byAccount.map(a => {
+                  const invested = a.value - a.pnl
+                  const pnlPct = invested > 0 ? (a.pnl / invested) * 100 : 0
+                  const pnlColor = a.pnl >= 0 ? 'var(--green)' : 'var(--red)'
+                  const sign = a.pnl >= 0 ? '+' : ''
+                  return (
+                    <div key={a.id}
+                      onClick={() => router.push(`/accounts/${a.id}`)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '5px 0', borderRadius: 6 }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap' }}>{a.name}</span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{a.bank}</span>
+                      <span style={{ flex: 1 }} />
+                      <span style={{ fontSize: 13, fontWeight: 500, filter: privacy ? 'blur(6px)' : 'none', whiteSpace: 'nowrap' }}>{formatEur(a.value, 0)}</span>
+                      <span style={{ fontSize: 11, color: pnlColor, filter: privacy ? 'blur(5px)' : 'none', whiteSpace: 'nowrap', minWidth: 110, textAlign: 'right' }}>
+                        {sign}{formatEur(a.pnl, 0)} / {sign}{pnlPct.toFixed(1)} %
+                      </span>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: 13, fontWeight: 500, filter: privacy ? 'blur(6px)' : 'none' }}>{formatEur(a.value, 0)}</p>
-                      <p style={{ fontSize: 11, color: a.pnl >= 0 ? 'var(--green)' : 'var(--red)', filter: privacy ? 'blur(5px)' : 'none' }}>
-                        {a.pnl >= 0 ? '+' : ''}{formatEur(a.pnl, 0)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>
