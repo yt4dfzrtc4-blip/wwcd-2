@@ -19,7 +19,7 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [byBank, setByBank] = useState<{ id: string; name: string; value: number }[]>([])
-  const [byAccount, setByAccount] = useState<{ id: string; name: string; bank: string; bankId: string; value: number }[]>([])
+  const [byAccount, setByAccount] = useState<{ id: string; name: string; bank: string; bankId: string; value: number; pnl: number }[]>([])
   const { privacy, togglePrivacy } = usePrivacy()
   const [refreshing, setRefreshing] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -65,20 +65,15 @@ export default function DashboardPage() {
       setSummary(s)
 
       // Répartition par compte
-      const accountMap: Record<string, { id: string; name: string; bank: string; bankId: string; value: number }> = {}
+      const accountMap: Record<string, { id: string; name: string; bank: string; bankId: string; value: number; pnl: number }> = {}
       for (const pos of positions) {
         const acc = pos.account as any
         const key = acc.id
         if (!accountMap[key]) {
-          accountMap[key] = {
-            id: acc.id,
-            name: acc.name,
-            bank: acc.bank?.name ?? '–',
-            bankId: acc.bank?.id ?? '',
-            value: 0,
-          }
+          accountMap[key] = { id: acc.id, name: acc.name, bank: acc.bank?.name ?? '–', bankId: acc.bank?.id ?? '', value: 0, pnl: 0 }
         }
         accountMap[key].value += pos.current_value
+        accountMap[key].pnl += pos.pnl
       }
       const accountList = Object.values(accountMap).sort((a, b) => b.value - a.value)
       setByAccount(accountList)
@@ -201,12 +196,11 @@ export default function DashboardPage() {
                       <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{a.name}</span>
                       <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>{a.bank}</span>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 500, filter: privacy ? 'blur(6px)' : 'none' }}>{formatEur(a.value, 0)}</span>
-                    <span style={{ fontSize: 11, color: 'var(--muted)', minWidth: 36, textAlign: 'right' }}>
-                      {totalValue > 0 ? `${((a.value / totalValue) * 100).toFixed(0)} %` : '–'}
-                    </span>
-                    <div style={{ width: 80, height: 4, background: 'var(--bg)', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ width: `${totalValue > 0 ? (a.value / totalValue) * 100 : 0}%`, height: '100%', background: '#1D9E75', borderRadius: 2 }} />
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ fontSize: 13, fontWeight: 500, filter: privacy ? 'blur(6px)' : 'none' }}>{formatEur(a.value, 0)}</p>
+                      <p style={{ fontSize: 11, color: a.pnl >= 0 ? 'var(--green)' : 'var(--red)', filter: privacy ? 'blur(5px)' : 'none' }}>
+                        {a.pnl >= 0 ? '+' : ''}{formatEur(a.pnl, 0)}
+                      </p>
                     </div>
                   </div>
                 ))}

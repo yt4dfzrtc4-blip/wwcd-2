@@ -68,9 +68,10 @@ export default function PortfolioEvolutionChart({ hidden }: { hidden?: boolean }
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 13 }}>
             Chargement…
           </div>
-        ) : !data.length ? (
-          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 13 }}>
-            Pas de données sur cette période
+        ) : data.length < 2 ? (
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '0 16px' }}>
+            <span>Pas encore de données historiques</span>
+            <span style={{ fontSize: 11 }}>Le graphique se remplit automatiquement chaque jour</span>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
