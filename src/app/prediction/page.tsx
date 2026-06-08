@@ -299,7 +299,7 @@ export default function PredictionPage() {
             Prédiction
           </h1>
           <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-            Projection de votre patrimoine sur {horizonYears} ans selon différents scénarios.
+            Projection de votre patrimoine sur {horizonYears} ans selon diff&eacute;rents sc&eacute;narios.
           </p>
         </div>
 
@@ -524,7 +524,7 @@ export default function PredictionPage() {
 
                   {totalRevenues > 0 && (
                     <p style={{ fontSize: 11, color: 'var(--green)', marginTop: 12 }}>
-                      Revenus estimés réinvestis : {formatEur(totalRevenues, 0)}/an (dividendes + intérêts + coupons de l'année en cours)
+                      Revenus estim&eacute;s r&eacute;investis : {formatEur(totalRevenues, 0)}/an (dividendes + int&eacute;r&ecirc;ts + coupons de l&apos;ann&eacute;e en cours)
                     </p>
                   )}
                 </div>
