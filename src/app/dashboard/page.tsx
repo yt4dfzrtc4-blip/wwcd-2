@@ -142,7 +142,7 @@ export default function DashboardPage() {
         <div style={{ display: 'grid', gridTemplateColumns: mobile ? 'repeat(2, 1fr)' : 'repeat(4, minmax(0,1fr))', gap: 10, marginBottom: 16 }}>
           <KpiCard label="Patrimoine total" value={s ? formatEur(s.total_value, 0) : '–'} sub={s ? `Capital investi : ${formatEur(s.total_invested, 0)}` : undefined} hidden={privacy} subHidden={privacy} />
           <KpiCard label="Patrimoine net" value={s ? formatEur(netWorth, 0) : '–'} sub={totalDebt > 0 ? `Dettes : −${formatEur(totalDebt, 0)}` : 'Aucune dette enregistrée'} valueColor={netWorth >= 0 ? 'gain' : 'loss'} hidden={privacy} subHidden={privacy} />
-          <KpiCard label="Plus-value latente" value={s ? formatEur(s.total_pnl, 0) : '–'} valueColor={s && s.total_pnl >= 0 ? 'gain' : 'loss'} hidden={privacy} />
+          <KpiCard label="Plus-value latente" value={s ? formatEur(s.total_pnl, 0) : '–'} sub={s ? `${s.total_pnl_pct >= 0 ? '+' : ''}${s.total_pnl_pct.toFixed(2)} %` : undefined} subColor={s && s.total_pnl_pct >= 0 ? 'gain' : 'loss'} valueColor={s && s.total_pnl >= 0 ? 'gain' : 'loss'} hidden={privacy} subHidden={privacy} />
           <KpiCard label="Variation du jour" value={s ? formatEur(s.day_change, 0) : '–'} sub={s ? formatPct(s.day_change_pct) : undefined} subColor={s && s.day_change >= 0 ? 'gain' : 'loss'} hidden={privacy} />
         </div>
 

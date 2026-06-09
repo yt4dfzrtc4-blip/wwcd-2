@@ -18,6 +18,7 @@ interface Loan {
   remaining_amount: number
   monthly_payment: number
   interest_rate: number
+  start_date?: string
   end_date?: string
 }
 
@@ -28,6 +29,7 @@ interface LoanForm {
   remaining_amount: string
   monthly_payment: string
   interest_rate: string
+  start_date: string
   end_date: string
 }
 
@@ -40,7 +42,7 @@ const LOAN_TYPE_LABELS: Record<Loan['type'], string> = {
 
 const EMPTY_FORM: LoanForm = {
   name: '', type: 'immobilier', lender: '',
-  remaining_amount: '', monthly_payment: '', interest_rate: '', end_date: '',
+  remaining_amount: '', monthly_payment: '', interest_rate: '', start_date: '', end_date: '',
 }
 
 // ─── XIRR (MWRR) ───────────────────────────────────────────────────────────────
@@ -287,6 +289,7 @@ export default function AnalysePage() {
       remaining_amount: String(loan.remaining_amount),
       monthly_payment: String(loan.monthly_payment),
       interest_rate: String(loan.interest_rate),
+      start_date: loan.start_date ?? '',
       end_date: loan.end_date ?? '',
     })
     setShowLoanForm(true)
@@ -301,6 +304,7 @@ export default function AnalysePage() {
       remaining_amount: parseFloat(loanForm.remaining_amount) || 0,
       monthly_payment: parseFloat(loanForm.monthly_payment) || 0,
       interest_rate: parseFloat(loanForm.interest_rate) || 0,
+      start_date: loanForm.start_date || null,
       end_date: loanForm.end_date || null,
     }
     if (editingLoan) {
@@ -326,6 +330,36 @@ export default function AnalysePage() {
     const end = new Date(loan.end_date)
     const diff = (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth())
     return Math.max(0, diff)
+  }
+
+  // Durée totale du prêt (start → end) en mois
+  function totalMonths(loan: Loan): number | null {
+    if (!loan.start_date || !loan.end_date) return null
+    const start = new Date(loan.start_date)
+    const end = new Date(loan.end_date)
+    const diff = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth())
+    return Math.max(1, diff)
+  }
+
+  // % remboursé (basé sur les dates)
+  function repaidPct(loan: Loan): number {
+    if (!loan.start_date || !loan.end_date) return 0
+    const start = new Date(loan.start_date).getTime()
+    const end = new Date(loan.end_date).getTime()
+    const now = Date.now()
+    const pct = (now - start) / (end - start)
+    return Math.min(100, Math.max(0, pct * 100))
+  }
+
+  // Intérêts restants calculés via formule amortissement (si taux > 0)
+  function interestsLeft(loan: Loan): number | null {
+    const months = monthsLeft(loan)
+    if (months === null || months === 0) return 0
+    if (loan.interest_rate <= 0) return 0
+    const r = loan.interest_rate / 100 / 12
+    // Intérêts restants = total paiements restants - capital restant
+    const totalPayments = loan.monthly_payment * months
+    return Math.max(0, totalPayments - loan.remaining_amount)
   }
 
   // ── Rendu ─────────────────────────────────────────────────────────────────────
@@ -673,6 +707,7 @@ export default function AnalysePage() {
   remaining_amount numeric not null default 0,
   monthly_payment numeric not null default 0,
   interest_rate numeric not null default 0,
+  start_date date,
   end_date date,
   created_at timestamptz default now()
 );
@@ -744,6 +779,11 @@ create policy "loans_own" on loans
                             </select>
                           </div>
                           <div>
+                            <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Date de début</label>
+                            <input type="date" value={loanForm.start_date} onChange={e => setLoanForm(f => ({ ...f, start_date: e.target.value }))}
+                              style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '0.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
                             <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Date de fin</label>
                             <input type="date" value={loanForm.end_date} onChange={e => setLoanForm(f => ({ ...f, end_date: e.target.value }))}
                               style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '0.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
@@ -790,8 +830,10 @@ create policy "loans_own" on loans
                       <div style={{ display: 'grid', gap: 10 }}>
                         {loans.map(loan => {
                           const months = monthsLeft(loan)
-                          const totalCost = loan.monthly_payment * (months ?? 0)
-                          const interestCost = totalCost - loan.remaining_amount
+                          const pct = repaidPct(loan)
+                          const interests = interestsLeft(loan)
+                          const startFmt = loan.start_date ? new Date(loan.start_date).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : null
+                          const endFmt = loan.end_date ? new Date(loan.end_date).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : null
                           return (
                             <SectionCard key={loan.id} style={{ padding: '16px 20px' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, gap: 10 }}>
@@ -816,30 +858,35 @@ create policy "loans_own" on loans
 
                               <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12 }}>
                                 {[
-                                  { label: 'Capital restant', value: formatEur(loan.remaining_amount, 0), color: 'var(--red)' },
-                                  { label: 'Mensualité', value: `${formatEur(loan.monthly_payment, 0)}/mois`, color: 'var(--text)' },
-                                  { label: 'Taux', value: `${loan.interest_rate} %`, color: 'var(--text)' },
-                                  { label: months !== null ? `Fin dans ${months} mois` : 'Date de fin', value: loan.end_date ? new Date(loan.end_date).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : '–', color: 'var(--muted)' },
-                                ].map(({ label, value, color }) => (
+                                  { label: 'Capital restant', value: formatEur(loan.remaining_amount, 0), color: 'var(--red)', blur: true },
+                                  { label: 'Mensualité', value: `${formatEur(loan.monthly_payment, 0)}/mois`, color: 'var(--text)', blur: false },
+                                  { label: 'Taux annuel', value: `${loan.interest_rate} %`, color: 'var(--text)', blur: false },
+                                  { label: 'Durée', value: startFmt && endFmt ? `${startFmt} → ${endFmt}` : endFmt ? `→ ${endFmt}` : '–', color: 'var(--muted)', blur: false },
+                                ].map(({ label, value, color, blur }) => (
                                   <div key={label}>
                                     <p style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>{label}</p>
-                                    <p style={{ fontSize: 13, fontWeight: 600, color, filter: privacy && label.includes('Capital') ? 'blur(5px)' : 'none' }}>{value}</p>
+                                    <p style={{ fontSize: 13, fontWeight: 600, color, filter: blur && privacy ? 'blur(5px)' : 'none' }}>{value}</p>
                                   </div>
                                 ))}
                               </div>
 
                               {/* Barre de progression remboursement */}
-                              {months !== null && loan.monthly_payment > 0 && (
-                                <div style={{ marginTop: 12 }}>
-                                  <div style={{ height: 4, background: 'var(--bg)', borderRadius: 2 }}>
-                                    <div style={{ height: '100%', background: 'var(--red)', borderRadius: 2, opacity: 0.6, width: '100%' }} />
-                                  </div>
-                                  <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
-                                    {months} mensualités restantes
-                                    {interestCost > 0 && !privacy && ` · ${formatEur(interestCost, 0)} d'intérêts restants`}
-                                  </p>
+                              <div style={{ marginTop: 14 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>
+                                  <span>{pct > 0 ? `${pct.toFixed(0)}% remboursé` : months !== null ? `${months} mois restants` : ''}</span>
+                                  {interests !== null && interests > 0 && !privacy && (
+                                    <span>{formatEur(interests, 0)} d&apos;intérêts restants</span>
+                                  )}
                                 </div>
-                              )}
+                                <div style={{ height: 6, background: 'var(--bg)', borderRadius: 3, overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', background: 'var(--green)', borderRadius: 3, width: `${pct}%`, opacity: 0.7, transition: 'width 0.3s' }} />
+                                </div>
+                                {startFmt && endFmt && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--muted)', marginTop: 3 }}>
+                                    <span>{startFmt}</span><span>{endFmt}</span>
+                                  </div>
+                                )}
+                              </div>
                             </SectionCard>
                           )
                         })}
