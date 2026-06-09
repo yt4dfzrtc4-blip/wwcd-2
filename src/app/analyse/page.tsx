@@ -452,9 +452,10 @@ export default function AnalysePage() {
                   <div style={{ display: 'grid', gap: 10 }}>
                     {allocData.map(d => {
                       const target = targetAlloc[d.cat] ?? 0
-                      const gap = d.actual - target
+                      const gap = d.actual - target           // + = sur-pondéré, - = sous-pondéré
                       const absGap = Math.abs(gap)
-                      const gapColor = absGap < 2 ? 'var(--green)' : absGap < 5 ? 'var(--muted)' : 'var(--red)'
+                      // Rouge si sur-pondéré (trop), vert si sous-pondéré (manque), muted si équilibré
+                      const gapColor = absGap < 1 ? 'var(--green)' : gap > 0 ? 'var(--red)' : 'var(--green)'
                       const rebalAmount = target > 0 ? ((target - d.actual) / 100) * totalValue : 0
 
                       return (
@@ -492,7 +493,7 @@ export default function AnalysePage() {
                                 {gap > 0 ? '+' : ''}{gap.toFixed(1)} %
                               </span>
                               {!privacy && absGap > 1 && (
-                                <span style={{ fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontSize: 10, color: gapColor, whiteSpace: 'nowrap' }}>
                                   {rebalAmount > 0 ? `+${formatEur(rebalAmount, 0)}` : formatEur(rebalAmount, 0)}
                                 </span>
                               )}
