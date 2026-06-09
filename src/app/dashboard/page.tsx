@@ -27,6 +27,7 @@ export default function DashboardPage() {
   const [mobile, setMobile] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<'value' | 'pnl' | 'pnl_pct' | 'day' | 'name' | 'category'>('value')
+  const [totalDebt, setTotalDebt] = useState(0)
 
   useEffect(() => {
     const check = () => setMobile(window.innerWidth < 640)
@@ -88,6 +89,10 @@ export default function DashboardPage() {
       setByBank(Object.values(bankMap).sort((a, b) => b.value - a.value))
     }
     setSnapshots((snaps ?? []) as Snapshot[])
+
+    // Dettes (table loans optionnelle)
+    const { data: loans } = await supabase.from('loans').select('remaining_amount')
+    if (loans) setTotalDebt(loans.reduce((s: number, l: any) => s + (l.remaining_amount ?? 0), 0))
     // Date de mise à jour : chercher dans les assets déjà chargés
     const allUpdatedAt = (assets ?? [])
       .map((a: any) => a.prices?.updated_at)
@@ -114,6 +119,7 @@ export default function DashboardPage() {
   }
 
   const totalValue = summary?.total_value ?? 0
+  const netWorth = totalValue - totalDebt
 
   if (loading) return (
     <div style={{ minHeight: '100vh' }}>
@@ -135,8 +141,8 @@ export default function DashboardPage() {
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: mobile ? 'repeat(2, 1fr)' : 'repeat(4, minmax(0,1fr))', gap: 10, marginBottom: 16 }}>
           <KpiCard label="Patrimoine total" value={s ? formatEur(s.total_value, 0) : '–'} sub={s ? `Capital investi : ${formatEur(s.total_invested, 0)}` : undefined} hidden={privacy} subHidden={privacy} />
+          <KpiCard label="Patrimoine net" value={s ? formatEur(netWorth, 0) : '–'} sub={totalDebt > 0 ? `Dettes : −${formatEur(totalDebt, 0)}` : 'Aucune dette enregistrée'} valueColor={netWorth >= 0 ? 'gain' : 'loss'} hidden={privacy} subHidden={privacy} />
           <KpiCard label="Plus-value latente" value={s ? formatEur(s.total_pnl, 0) : '–'} valueColor={s && s.total_pnl >= 0 ? 'gain' : 'loss'} hidden={privacy} />
-          <KpiCard label="Performance globale" value={s ? formatPct(s.total_pnl_pct) : '–'} valueColor={s && s.total_pnl_pct >= 0 ? 'gain' : 'loss'} hidden={privacy} />
           <KpiCard label="Variation du jour" value={s ? formatEur(s.day_change, 0) : '–'} sub={s ? formatPct(s.day_change_pct) : undefined} subColor={s && s.day_change >= 0 ? 'gain' : 'loss'} hidden={privacy} />
         </div>
 
