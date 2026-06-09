@@ -622,13 +622,13 @@ export default function AnalysePage() {
                 <SectionCard>
                   <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Meilleures &amp; pires positions</p>
                   <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 10 }}>
-                    {['Top 5', 'Flop 5'].map((title, idx) => {
+                    {['Top 10', 'Flop 10'].map((title, idx) => {
                       const sorted = [...positions].sort((a, b) => idx === 0 ? b.pnl_pct - a.pnl_pct : a.pnl_pct - b.pnl_pct)
                       return (
                         <div key={title}>
                           <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</p>
                           <div style={{ display: 'grid', gap: 6 }}>
-                            {sorted.slice(0, 5).map(p => (
+                            {sorted.slice(0, 10).map(p => (
                               <div key={p.asset.id + p.account.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                                 <span style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                                   {p.asset.name}
