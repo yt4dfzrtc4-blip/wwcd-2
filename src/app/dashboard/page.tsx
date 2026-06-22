@@ -88,7 +88,15 @@ export default function DashboardPage() {
       }
       setByBank(Object.values(bankMap).sort((a, b) => b.value - a.value))
     }
-    setSnapshots((snaps ?? []) as Snapshot[])
+    const snapshotList = (snaps ?? []) as Snapshot[]
+    setSnapshots(snapshotList)
+
+    // Si aucun snapshot pour aujourd'hui, en créer un automatiquement
+    const todayStr = new Date().toISOString().split('T')[0]
+    const hasToday = snapshotList.some((s: Snapshot) => s.date === todayStr)
+    if (!hasToday) {
+      fetch('/api/snapshot', { method: 'POST' }).catch(() => {})
+    }
 
     // Dettes (table loans optionnelle)
     const { data: loans } = await supabase.from('loans').select('remaining_amount')
@@ -111,9 +119,9 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
+  // Appelé par la Topbar APRÈS que l'API prices/refresh a déjà été appelée
   async function handleRefresh() {
     setRefreshing(true)
-    await fetch('/api/prices/refresh', { method: 'POST' })
     await loadData()
     setRefreshing(false)
   }
