@@ -397,17 +397,37 @@ export default function AnalysePage() {
           </div>
         ) : (
           <>
-            {/* Tabs */}
-            <div style={{
-              display: 'flex', gap: 4, background: 'var(--surface)',
-              borderRadius: 10, padding: 4, marginBottom: 20,
-              border: '0.5px solid var(--border)', overflowX: 'auto',
-            }}>
-              <Tab label="Allocation" active={tab === 'allocation'} onClick={() => setTab('allocation')} icon={<PieIcon size={14} />} />
-              <Tab label="Concentration" active={tab === 'concentration'} onClick={() => setTab('concentration')} icon={<BarChart2 size={14} />} />
-              <Tab label="Performance" active={tab === 'performance'} onClick={() => setTab('performance')} icon={<TrendingUp size={14} />} />
-              <Tab label={`Passif${loans.length ? ` (${loans.length})` : ''}`} active={tab === 'passif'} onClick={() => setTab('passif')} icon={<Landmark size={14} />} />
-            </div>
+            {/* Tabs — select sur mobile, boutons sur desktop */}
+            {mobile ? (
+              <select
+                value={tab}
+                onChange={e => setTab(e.target.value as typeof tab)}
+                style={{
+                  width: '100%', padding: '10px 14px', borderRadius: 10, marginBottom: 20,
+                  border: '0.5px solid var(--border)', background: 'var(--surface)',
+                  color: 'var(--text)', fontSize: 14, fontWeight: 500,
+                  fontFamily: 'var(--font-sans)', cursor: 'pointer', appearance: 'none',
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+                  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center',
+                }}
+              >
+                <option value="allocation">📊 Allocation</option>
+                <option value="concentration">📈 Concentration</option>
+                <option value="performance">🏆 Performance</option>
+                <option value="passif">{`🏦 Passif${loans.length ? ` (${loans.length})` : ''}`}</option>
+              </select>
+            ) : (
+              <div style={{
+                display: 'flex', gap: 4, background: 'var(--surface)',
+                borderRadius: 10, padding: 4, marginBottom: 20,
+                border: '0.5px solid var(--border)',
+              }}>
+                <Tab label="Allocation" active={tab === 'allocation'} onClick={() => setTab('allocation')} icon={<PieIcon size={14} />} />
+                <Tab label="Concentration" active={tab === 'concentration'} onClick={() => setTab('concentration')} icon={<BarChart2 size={14} />} />
+                <Tab label="Performance" active={tab === 'performance'} onClick={() => setTab('performance')} icon={<TrendingUp size={14} />} />
+                <Tab label={`Passif${loans.length ? ` (${loans.length})` : ''}`} active={tab === 'passif'} onClick={() => setTab('passif')} icon={<Landmark size={14} />} />
+              </div>
+            )}
 
             {/* ── TAB : ALLOCATION ──────────────────────────────────────────── */}
             {tab === 'allocation' && (

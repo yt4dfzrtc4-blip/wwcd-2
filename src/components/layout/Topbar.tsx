@@ -21,14 +21,13 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
   const [menuOpen, setMenuOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
-  async function handleRefresh() {
+  function handleRefresh() {
+    if (refreshing) return
     setRefreshing(true)
-    try {
-      await fetch('/api/prices/refresh', { method: 'POST' })
-      if (onRefresh) await onRefresh()
-    } finally {
-      setRefreshing(false)
-    }
+    fetch('/api/prices/refresh', { method: 'POST' })
+      .then(() => onRefresh?.())
+      .catch(() => {})
+      .finally(() => setRefreshing(false))
   }
 
   const isRefreshing = refreshingProp ?? refreshing
@@ -112,6 +111,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
               border: '0.5px solid var(--border)',
               background: 'transparent', color: 'var(--muted)',
               fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              touchAction: 'manipulation',
             }}>
               <RefreshCw size={13} style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
               <span>Actualiser</span>
@@ -139,7 +139,7 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
             <button onClick={handleRefresh} title="Actualiser les cours" style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 36, height: 36, borderRadius: 7, border: 'none', background: 'transparent',
-              color: 'var(--muted)', cursor: 'pointer',
+              color: 'var(--muted)', cursor: 'pointer', touchAction: 'manipulation',
             }}>
               <RefreshCw size={16} style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
             </button>

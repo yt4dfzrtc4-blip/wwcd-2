@@ -7,7 +7,7 @@ import { buildPositions, buildPortfolioSummary, formatEur, formatPct, CATEGORY_L
 import type { PortfolioSummary, Snapshot, Position } from '@/types'
 import Topbar from '@/components/layout/Topbar'
 import KpiCard from '@/components/ui/KpiCard'
-import PortfolioEvolutionChart from '@/components/charts/PortfolioEvolutionChart'
+import EvolutionChart from '@/components/charts/EvolutionChart'
 import DonutChart from '@/components/charts/DonutChart'
 import TransactionModal from '@/components/ui/TransactionModal'
 import { Plus, ChevronRight } from 'lucide-react'
@@ -154,7 +154,7 @@ export default function DashboardPage() {
         <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 16 }}>
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
             <p style={sectionLabel}>Évolution</p>
-            <PortfolioEvolutionChart hidden={privacy} />
+            <EvolutionChart snapshots={snapshots} hidden={privacy} />
           </div>
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
             <p style={sectionLabel}>Répartition par catégorie</p>
