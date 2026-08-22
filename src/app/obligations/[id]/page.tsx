@@ -51,18 +51,21 @@ export default function ObligationPage() {
   }
 
   async function saveNominal() {
-    await supabase.from('assets').update({ obligation_nominal: parseFloat(newNominal) || 0 }).eq('id', id)
+    const { error } = await supabase.from('assets').update({ obligation_nominal: parseFloat(newNominal) || 0 }).eq('id', id)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     setEditNominal(false); loadData()
   }
 
   async function saveAvgPrice() {
-    await supabase.from('assets').update({ obligation_avg_price: parseFloat(newAvgPrice) || 100 }).eq('id', id)
+    const { error } = await supabase.from('assets').update({ obligation_avg_price: parseFloat(newAvgPrice) || 100 }).eq('id', id)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     setEditAvgPrice(false); loadData()
   }
 
   async function deleteCoupon(txId: string) {
     if (!confirm('Supprimer ce coupon ?')) return
-    await supabase.from('transactions').delete().eq('id', txId)
+    const { error } = await supabase.from('transactions').delete().eq('id', txId)
+    if (error) { alert(`Échec de la suppression : ${error.message}`); return }
     loadData()
   }
 
@@ -279,17 +282,17 @@ function CouponModal({ assetId, accounts, editTx, onClose, onSuccess }: {
     e.preventDefault()
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setLoading(false); return }
     const payload = {
       user_id: user.id, asset_id: assetId, account_id: accountId,
       type: 'interets', quantity: 1, price: parseFloat(amount),
       date, notes: notes || null,
     }
-    if (editTx?.id) {
-      await supabase.from('transactions').update(payload).eq('id', editTx.id)
-    } else {
-      await supabase.from('transactions').insert(payload)
-    }
+    const { error } = editTx?.id
+      ? await supabase.from('transactions').update(payload).eq('id', editTx.id)
+      : await supabase.from('transactions').insert(payload)
+    setLoading(false)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     onSuccess(); onClose()
   }
 

@@ -307,19 +307,19 @@ export default function AnalysePage() {
       start_date: loanForm.start_date || null,
       end_date: loanForm.end_date || null,
     }
-    if (editingLoan) {
-      await supabase.from('loans').update(payload).eq('id', editingLoan.id)
-    } else {
-      await supabase.from('loans').insert(payload)
-    }
+    const { error } = editingLoan
+      ? await supabase.from('loans').update(payload).eq('id', editingLoan.id)
+      : await supabase.from('loans').insert(payload)
+    setSavingLoan(false)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     await loadLoans()
     setShowLoanForm(false)
-    setSavingLoan(false)
   }
 
   async function deleteLoan(id: string) {
     if (!confirm('Supprimer ce prêt ?')) return
-    await supabase.from('loans').delete().eq('id', id)
+    const { error } = await supabase.from('loans').delete().eq('id', id)
+    if (error) { alert(`Échec de la suppression : ${error.message}`); return }
     await loadLoans()
   }
 

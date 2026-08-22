@@ -17,12 +17,17 @@ async function takeSnapshot(supabase: ReturnType<typeof createServiceClient>, us
   const positions = buildPositions(transactions as any, assets as any, accounts as any)
   const summary = buildPortfolioSummary(positions)
 
-  await supabase.from('snapshots').upsert({
+  const { error } = await supabase.from('snapshots').upsert({
     user_id: userId,
     date: today,
     total_value: summary.total_value,
     total_invested: summary.total_invested,
   }, { onConflict: 'user_id,date' })
+
+  if (error) {
+    console.error(`[snapshot] échec upsert pour user ${userId}:`, error.message)
+    return null
+  }
 
   return { date: today, total_value: summary.total_value }
 }

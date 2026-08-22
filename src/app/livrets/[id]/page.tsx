@@ -89,21 +89,24 @@ export default function LivretPage() {
 
   async function deleteTx(txId: string) {
     if (!confirm('Supprimer ce mouvement ?')) return
-    await supabase.from('transactions').delete().eq('id', txId)
+    const { error } = await supabase.from('transactions').delete().eq('id', txId)
+    if (error) { alert(`Échec de la suppression : ${error.message}`); return }
     loadData()
   }
 
   async function saveRate() {
-    await supabase.from('accounts').update({
+    const { error } = await supabase.from('accounts').update({
       livret_rate: parseFloat(newRate),
       livret_rate_updated_at: new Date().toISOString().split('T')[0],
     }).eq('id', id)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     setEditRate(false)
     loadData()
   }
 
   async function saveBalance() {
-    await supabase.from('accounts').update({ balance: parseFloat(newBalance) || 0 }).eq('id', id)
+    const { error } = await supabase.from('accounts').update({ balance: parseFloat(newBalance) || 0 }).eq('id', id)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     setEditBalance(false)
     loadData()
   }
@@ -273,8 +276,8 @@ function MovementModal({ type, accountId, assetId, onClose, onSuccess }: {
     e.preventDefault()
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    await supabase.from('transactions').insert({
+    if (!user) { setLoading(false); return }
+    const { error } = await supabase.from('transactions').insert({
       user_id: user.id,
       account_id: accountId,
       asset_id: assetId,
@@ -284,6 +287,8 @@ function MovementModal({ type, accountId, assetId, onClose, onSuccess }: {
       date,
       notes: note || null,
     })
+    setLoading(false)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     onSuccess(); onClose()
   }
 

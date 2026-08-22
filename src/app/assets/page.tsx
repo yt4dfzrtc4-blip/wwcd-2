@@ -50,19 +50,22 @@ export default function AssetsPage() {
 
   async function deleteAsset(id: string) {
     if (!confirm('Supprimer cet actif et toutes ses transactions ?')) return
-    await supabase.from('assets').delete().eq('id', id)
+    const { error } = await supabase.from('assets').delete().eq('id', id)
+    if (error) { alert(`Échec de la suppression : ${error.message}`); return }
     loadData()
   }
 
   async function deleteAccount(id: string) {
     if (!confirm('Supprimer ce compte ?')) return
-    await supabase.from('accounts').delete().eq('id', id)
+    const { error } = await supabase.from('accounts').delete().eq('id', id)
+    if (error) { alert(`Échec de la suppression : ${error.message}`); return }
     loadData()
   }
 
   async function deleteBank(id: string) {
     if (!confirm('Supprimer cette banque ?')) return
-    await supabase.from('banks').delete().eq('id', id)
+    const { error } = await supabase.from('banks').delete().eq('id', id)
+    if (error) { alert(`Échec de la suppression : ${error.message}`); return }
     loadData()
   }
 
@@ -240,12 +243,12 @@ function BankModal({ bank, onClose, onSuccess }: { bank: Bank | null; onClose: (
     e.preventDefault()
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    if (bank?.id) {
-      await supabase.from('banks').update({ name }).eq('id', bank.id)
-    } else {
-      await supabase.from('banks').insert({ name, user_id: user.id })
-    }
+    if (!user) { setLoading(false); return }
+    const { error } = bank?.id
+      ? await supabase.from('banks').update({ name }).eq('id', bank.id)
+      : await supabase.from('banks').insert({ name, user_id: user.id })
+    setLoading(false)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     onSuccess(); onClose()
   }
 
@@ -280,14 +283,14 @@ function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; a
     e.preventDefault()
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setLoading(false); return }
     const finalType = form.type === 'autre' && form.customType ? form.customType.toLowerCase().replace(/\s+/g, '_') : form.type
     const payload = { name: form.name, type: finalType, bank_id: form.bank_id || null }
-    if (account?.id) {
-      await supabase.from('accounts').update(payload).eq('id', account.id)
-    } else {
-      await supabase.from('accounts').insert({ ...payload, user_id: user.id })
-    }
+    const { error } = account?.id
+      ? await supabase.from('accounts').update(payload).eq('id', account.id)
+      : await supabase.from('accounts').insert({ ...payload, user_id: user.id })
+    setLoading(false)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     onSuccess(); onClose()
   }
 
@@ -382,7 +385,7 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
     e.preventDefault()
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setLoading(false); return }
     const finalCategory = form.category === 'autre' && form.customCategory.trim()
       ? form.customCategory.trim().toLowerCase()
       : form.category
@@ -410,10 +413,14 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
       creance_start_date: showCreanceOptions && form.creance_start_date ? form.creance_start_date : null,
     }
     if (asset?.id) {
-      await supabase.from('assets').update(payload).eq('id', asset.id)
+      const { error } = await supabase.from('assets').update(payload).eq('id', asset.id)
+      setLoading(false)
+      if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
       onSuccess(); onClose()
     } else {
-      const { data: newAsset } = await supabase.from('assets').insert(payload).select('id').single()
+      const { data: newAsset, error } = await supabase.from('assets').insert(payload).select('id').single()
+      setLoading(false)
+      if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
       onSuccess(); onClose()
       if (finalCategory === 'obligation' && newAsset?.id) router.push(`/obligations/${newAsset.id}`)
       if (finalCategory === 'creance' && newAsset?.id) router.push(`/creances/${newAsset.id}`)

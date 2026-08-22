@@ -136,10 +136,12 @@ export async function POST() {
   }
 
   let inserted = 0
+  let upsertError: string | null = null
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500)
     const { error } = await supabase.from('snapshots').upsert(chunk, { onConflict: 'user_id,date' })
-    if (!error) inserted += chunk.length
+    if (error) upsertError = error.message
+    else inserted += chunk.length
   }
 
   return NextResponse.json({
@@ -147,5 +149,6 @@ export async function POST() {
     days_processed: dates.length,
     tickers_ok: priceMap.size,
     tickers_failed: tickersFailed,
+    ...(upsertError ? { error: upsertError } : {}),
   })
 }

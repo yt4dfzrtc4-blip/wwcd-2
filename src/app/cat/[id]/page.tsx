@@ -72,20 +72,24 @@ export default function CatPage() {
   const interetsEcheance = dureeTotal ? capital * (taux / 100) * (dureeTotal / 365) : null
 
   async function saveRate() {
-    await supabase.from('accounts').update({ livret_rate: parseFloat(newRate) }).eq('id', id)
+    const { error } = await supabase.from('accounts').update({ livret_rate: parseFloat(newRate) }).eq('id', id)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     setEditRate(false); loadData()
   }
   async function saveMaturity() {
-    await supabase.from('accounts').update({ cat_maturity_date: newMaturity || null }).eq('id', id)
+    const { error } = await supabase.from('accounts').update({ cat_maturity_date: newMaturity || null }).eq('id', id)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     setEditMaturity(false); loadData()
   }
   async function saveCapital() {
-    await supabase.from('accounts').update({ balance: parseFloat(newCapital) || 0 }).eq('id', id)
+    const { error } = await supabase.from('accounts').update({ balance: parseFloat(newCapital) || 0 }).eq('id', id)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     setEditCapital(false); loadData()
   }
   async function deleteTx(txId: string) {
     if (!confirm('Supprimer ce mouvement ?')) return
-    await supabase.from('transactions').delete().eq('id', txId)
+    const { error } = await supabase.from('transactions').delete().eq('id', txId)
+    if (error) { alert(`Échec de la suppression : ${error.message}`); return }
     loadData()
   }
 
@@ -299,16 +303,16 @@ function DepotModal({ accountId, assetId, editTx, onClose, onSuccess }: {
     e.preventDefault()
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setLoading(false); return }
     const payload = {
       user_id: user.id, account_id: accountId, asset_id: assetId,
       type, quantity: 1, price: parseFloat(amount), date, notes: notes || null,
     }
-    if (editTx?.id) {
-      await supabase.from('transactions').update(payload).eq('id', editTx.id)
-    } else {
-      await supabase.from('transactions').insert(payload)
-    }
+    const { error } = editTx?.id
+      ? await supabase.from('transactions').update(payload).eq('id', editTx.id)
+      : await supabase.from('transactions').insert(payload)
+    setLoading(false)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     onSuccess(); onClose()
   }
 

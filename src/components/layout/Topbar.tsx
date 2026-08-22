@@ -25,8 +25,14 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
     if (refreshing) return
     setRefreshing(true)
     fetch('/api/prices/refresh', { method: 'POST' })
-      .then(() => onRefresh?.())
-      .catch(() => {})
+      .then(r => r.json())
+      .then(json => {
+        onRefresh?.()
+        if (json?.errors?.length) {
+          alert(`Cours non récupérés pour ${json.errors.length} actif(s) : ${json.errors.join(', ')}`)
+        }
+      })
+      .catch(() => alert('Échec de la récupération des cours.'))
       .finally(() => setRefreshing(false))
   }
 

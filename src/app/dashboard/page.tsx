@@ -136,6 +136,7 @@ export default function DashboardPage() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Erreur inconnue')
       await loadData()
+      if (json.error) alert(`Historique partiellement reconstruit (${json.inserted}/${json.days_processed} jours) : ${json.error}`)
     } catch (e: any) {
       alert(`Échec de la reconstruction : ${e.message}`)
     } finally {

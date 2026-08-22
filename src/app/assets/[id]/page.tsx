@@ -46,7 +46,8 @@ export default function AssetDetailPage() {
 
   async function deleteTx(txId: string) {
     if (!confirm('Supprimer cette transaction ?')) return
-    await supabase.from('transactions').delete().eq('id', txId)
+    const { error } = await supabase.from('transactions').delete().eq('id', txId)
+    if (error) { alert(`Échec de la suppression : ${error.message}`); return }
     loadData()
   }
 

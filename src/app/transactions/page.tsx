@@ -58,7 +58,8 @@ export default function TransactionsPage() {
 
   async function deleteTx(id: string) {
     if (!confirm('Supprimer cette transaction ?')) return
-    await supabase.from('transactions').delete().eq('id', id)
+    const { error } = await supabase.from('transactions').delete().eq('id', id)
+    if (error) { alert(`Échec de la suppression : ${error.message}`); return }
     loadData()
   }
 
@@ -229,11 +230,16 @@ export default function TransactionsPage() {
     if (toDelete.length === 0) { alert('Aucun doublon trouvé.'); setRemovingDupes(false); return }
 
     // Supprimer par lots de 100
+    let deletedCount = 0
+    let lastError: string | null = null
     for (let i = 0; i < toDelete.length; i += 100) {
-      await supabase.from('transactions').delete().in('id', toDelete.slice(i, i + 100))
+      const { error } = await supabase.from('transactions').delete().in('id', toDelete.slice(i, i + 100))
+      if (error) lastError = error.message
+      else deletedCount += toDelete.slice(i, i + 100).length
     }
 
-    alert(`${toDelete.length} doublon(s) supprimé(s).`)
+    if (lastError) alert(`${deletedCount} doublon(s) supprimé(s), mais une erreur est survenue : ${lastError}`)
+    else alert(`${deletedCount} doublon(s) supprimé(s).`)
     setRemovingDupes(false)
     loadData()
   }

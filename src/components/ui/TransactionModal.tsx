@@ -67,7 +67,7 @@ export default function TransactionModal({ onClose, onSuccess, editTransaction }
     setError('')
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setLoading(false); return }
 
     const payload = {
       user_id: user.id,
