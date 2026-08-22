@@ -131,7 +131,7 @@ export function buildPositions(
   }
 
   // Passe 3 : créances — valeur = capital initial - remboursements reçus
-  const creanceAccount = { id: 'creances', name: 'Créances', type: 'autre', created_at: '', user_id: '' } as Account
+  const creanceAccount = { id: 'creances', name: 'Créances', type: 'autre', created_at: '', user_id: '', bank: { id: 'creances-bank', name: 'Créances', user_id: '', created_at: '' } } as any as Account
 
   for (const asset of assets) {
     if (asset.category !== 'creance') continue

@@ -269,7 +269,10 @@ export default function DashboardPage() {
                 default: return b.current_value - a.current_value
               }
             }).map(pos => (
-              <PositionRow key={`${pos.asset.id}-${pos.account.id}`} pos={pos} hidden={privacy} mobile={mobile} totalValue={totalValue} onClick={() => router.push(`/assets/${pos.asset.id}`)} />
+              <PositionRow key={`${pos.asset.id}-${pos.account.id}`} pos={pos} hidden={privacy} mobile={mobile} totalValue={totalValue} onClick={() => {
+                if (pos.asset.category === 'creance') router.push(`/creances/${pos.asset.id}`)
+                else router.push(`/assets/${pos.asset.id}`)
+              }} />
             ))
           )}
         </div>
