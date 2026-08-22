@@ -83,7 +83,8 @@ export default function CreancePage() {
 
   async function deletePay(txId: string) {
     if (!confirm('Supprimer ce paiement ?')) return
-    await supabase.from('transactions').delete().eq('id', txId)
+    const { error } = await supabase.from('transactions').delete().eq('id', txId)
+    if (error) { alert(`Échec de la suppression : ${error.message}`); return }
     loadData()
   }
 
@@ -260,8 +261,8 @@ function PaymentModal({ assetId, suggestedAmount, onClose, onSuccess }: {
     e.preventDefault()
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    await supabase.from('transactions').insert({
+    if (!user) { setLoading(false); return }
+    const { error } = await supabase.from('transactions').insert({
       user_id: user.id,
       asset_id: assetId,
       account_id: null,
@@ -271,6 +272,8 @@ function PaymentModal({ assetId, suggestedAmount, onClose, onSuccess }: {
       date,
       notes: note || null,
     })
+    setLoading(false)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     onSuccess(); onClose()
   }
 

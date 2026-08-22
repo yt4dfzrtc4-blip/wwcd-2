@@ -18,8 +18,8 @@ export default function DashboardPage() {
   const router = useRouter()
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
-  const [byBank, setByBank] = useState<{ id: string; name: string; value: number }[]>([])
-  const [byAccount, setByAccount] = useState<{ id: string; name: string; bank: string; bankId: string; value: number; pnl: number }[]>([])
+  const [byBank, setByBank] = useState<{ id: string; name: string; value: number; assetIds: string[] }[]>([])
+  const [byAccount, setByAccount] = useState<{ id: string; name: string; bank: string; bankId: string; value: number; pnl: number; assetIds: string[] }[]>([])
   const { privacy, togglePrivacy } = usePrivacy()
   const [refreshing, setRefreshing] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -67,25 +67,27 @@ export default function DashboardPage() {
       setSummary(s)
 
       // Répartition par compte
-      const accountMap: Record<string, { id: string; name: string; bank: string; bankId: string; value: number; pnl: number }> = {}
+      const accountMap: Record<string, { id: string; name: string; bank: string; bankId: string; value: number; pnl: number; assetIds: string[] }> = {}
       for (const pos of positions) {
         const acc = pos.account as any
         const key = acc.id
         if (!accountMap[key]) {
-          accountMap[key] = { id: acc.id, name: acc.name, bank: acc.bank?.name ?? '–', bankId: acc.bank?.id ?? '', value: 0, pnl: 0 }
+          accountMap[key] = { id: acc.id, name: acc.name, bank: acc.bank?.name ?? '–', bankId: acc.bank?.id ?? '', value: 0, pnl: 0, assetIds: [] }
         }
         accountMap[key].value += pos.current_value
         accountMap[key].pnl += pos.pnl
+        accountMap[key].assetIds.push(pos.asset.id)
       }
       const accountList = Object.values(accountMap).sort((a, b) => b.value - a.value)
       setByAccount(accountList)
 
       // Répartition par banque
-      const bankMap: Record<string, { id: string; name: string; value: number }> = {}
+      const bankMap: Record<string, { id: string; name: string; value: number; assetIds: string[] }> = {}
       for (const acc of accountList) {
         const key = acc.bankId || acc.bank
-        if (!bankMap[key]) bankMap[key] = { id: acc.bankId, name: acc.bank, value: 0 }
+        if (!bankMap[key]) bankMap[key] = { id: acc.bankId, name: acc.bank, value: 0, assetIds: [] }
         bankMap[key].value += acc.value
+        bankMap[key].assetIds.push(...acc.assetIds)
       }
       setByBank(Object.values(bankMap).sort((a, b) => b.value - a.value))
     }
@@ -202,11 +204,13 @@ export default function DashboardPage() {
             <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
               <p style={sectionLabel}>Par banque</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                {byBank.map(b => (
+                {byBank.map(b => {
+                  const link = groupLink(b.id, b.assetIds, 'bank')
+                  return (
                   <div key={b.name}
-                    onClick={() => b.id && router.push(`/banks/${b.id}`)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: b.id ? 'pointer' : 'default', borderRadius: 7, padding: '4px 0' }}
-                    onMouseEnter={e => b.id && (e.currentTarget.style.opacity = '0.75')}
+                    onClick={() => link && router.push(link)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: link ? 'pointer' : 'default', borderRadius: 7, padding: '4px 0' }}
+                    onMouseEnter={e => link && (e.currentTarget.style.opacity = '0.75')}
                     onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
                   >
                     <span style={{ fontSize: 13, flex: 1, color: 'var(--text)', fontWeight: 500 }}>{b.name}</span>
@@ -218,7 +222,8 @@ export default function DashboardPage() {
                       <div style={{ width: `${totalValue > 0 ? (b.value / totalValue) * 100 : 0}%`, height: '100%', background: 'var(--brand)', borderRadius: 2 }} />
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
@@ -230,11 +235,12 @@ export default function DashboardPage() {
                   const pnlPct = invested > 0 ? (a.pnl / invested) * 100 : 0
                   const pnlColor = a.pnl >= 0 ? 'var(--green)' : 'var(--red)'
                   const sign = a.pnl >= 0 ? '+' : ''
+                  const link = groupLink(a.id, a.assetIds, 'account')
                   return (
                     <div key={a.id}
-                      onClick={() => router.push(`/accounts/${a.id}`)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '5px 0', borderRadius: 6 }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
+                      onClick={() => link && router.push(link)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: link ? 'pointer' : 'default', padding: '5px 0', borderRadius: 6 }}
+                      onMouseEnter={e => link && (e.currentTarget.style.background = 'var(--bg)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
                       <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap' }}>{a.name}</span>
@@ -314,6 +320,16 @@ export default function DashboardPage() {
 }
 
 const sectionLabel: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }
+
+// Les créances sont regroupées sous un compte/banque virtuels (id 'creances' / 'creances-bank')
+// qui n'existent pas en base — on route directement vers la créance quand il n'y en a qu'une.
+function groupLink(id: string, assetIds: string[], kind: 'account' | 'bank'): string | null {
+  if (id === 'creances' || id === 'creances-bank') {
+    return assetIds.length === 1 ? `/creances/${assetIds[0]}` : null
+  }
+  if (!id) return null
+  return kind === 'account' ? `/accounts/${id}` : `/banks/${id}`
+}
 
 function PositionRow({ pos, hidden, mobile, totalValue, onClick }: { pos: Position; hidden: boolean; mobile: boolean; totalValue: number; onClick: () => void }) {
   const isGain = pos.pnl >= 0
