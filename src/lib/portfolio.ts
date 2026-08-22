@@ -78,6 +78,11 @@ export function buildPositions(
 
     const currentPrice = asset.prices?.price || averagePrice
     const currentValue = quantity * currentPrice
+    // Résidu de rounding après une liquidation quasi-totale (ex: somme de dizaines
+    // d'achats/ventes en 6 décimales qui ne retombe pas exactement sur 0) : on
+    // ignore les positions dont la valeur est négligeable plutôt que d'afficher
+    // une ligne fantôme à "0 €".
+    if (currentValue < 0.05) continue
     const pnl = currentValue - investedValue
     const pnlPct = investedValue > 0 ? (pnl / investedValue) * 100 : 0
     const dayChangePct = asset.prices?.change_pct ?? 0
