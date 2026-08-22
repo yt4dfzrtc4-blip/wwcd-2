@@ -4,14 +4,14 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { usePrivacy } from '@/hooks/usePrivacy'
 import Topbar from '@/components/layout/Topbar'
-import { differenceInDays, format, subDays } from 'date-fns'
+import { differenceInDays, format, subDays, addMonths } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
 const MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
 
 interface RevenueItem {
   name: string
-  type: 'livret' | 'cat' | 'obligation' | 'dividende'
+  type: 'livret' | 'cat' | 'obligation' | 'dividende' | 'creance'
   annualAmount: number
   monthlyBreakdown: number[]
   detail: string
@@ -223,6 +223,52 @@ export default function RevenusPage() {
       })
     }
 
+    // ── CRÉANCES ── intérêt = mensualité × durée − capital prêté, réparti sur la durée du prêt
+    for (const asset of (assets ?? [])) {
+      if (asset.category !== 'creance') continue
+      const initial = (asset as any).creance_initial ?? 0
+      const monthly = (asset as any).creance_monthly ?? 0
+      const months = (asset as any).creance_months ?? 0
+      const startStr = (asset as any).creance_start_date
+      if (!initial || !monthly || !months || !startStr) continue
+
+      const totalExpected = monthly * months
+      const gain = totalExpected - initial
+      if (gain <= 0) continue  // pas d'intérêt (remboursement à l'identique)
+
+      const startDate = new Date(startStr)
+      const endDate = addMonths(startDate, months)
+
+      // Portion de la durée du prêt qui tombe dans l'année en cours
+      const debut = startDate > yearStart ? startDate : yearStart
+      const fin = endDate < yearEnd ? endDate : yearEnd
+      if (fin < debut) continue  // prêt pas actif cette année
+
+      const totalDureeJours = differenceInDays(endDate, startDate) || 1
+      const joursAnnee = differenceInDays(fin, debut) + 1
+      const interetAnnee = gain * (joursAnnee / totalDureeJours)
+
+      // Répartition mensuelle uniforme sur les mois actifs de l'année
+      const monthly12 = Array(12).fill(0)
+      const moisConcernes: number[] = []
+      let cursor = new Date(debut.getFullYear(), debut.getMonth(), 1)
+      while (cursor <= fin) {
+        if (cursor.getFullYear() === year) moisConcernes.push(cursor.getMonth())
+        cursor = addMonths(cursor, 1)
+      }
+      const parMois = moisConcernes.length > 0 ? interetAnnee / moisConcernes.length : 0
+      moisConcernes.forEach(m => { monthly12[m] = parMois })
+
+      result.push({
+        name: asset.name,
+        type: 'creance',
+        annualAmount: interetAnnee,
+        monthlyBreakdown: monthly12,
+        detail: `${initial.toLocaleString('fr-FR')} € prêtés × ${months} mois — intérêt total ${gain.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`,
+        isEstimate: true,
+      })
+    }
+
     // ── OBLIGATIONS ── coupons estimés + coupons déjà reçus cette année
     for (const asset of (assets ?? [])) {
       if (asset.category !== 'obligation') continue
@@ -374,12 +420,14 @@ export default function RevenusPage() {
     cat: '#BA7517',
     obligation: '#D85A30',
     dividende: 'var(--brand)',
+    creance: '#0EA5A0',
   }
   const typeLabels: Record<string, string> = {
     livret: 'Livret',
     cat: 'CAT',
     obligation: 'Obligation',
     dividende: 'Dividende',
+    creance: 'Créance',
   }
 
   return (
@@ -400,7 +448,7 @@ export default function RevenusPage() {
           </p>
           <p style={{ fontSize: 32, fontWeight: 500, color: 'var(--green)', filter: privacy ? 'blur(8px)' : 'none' }}>{fmt(totalAnnual)}</p>
           <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
-            {(['livret','cat','obligation','dividende'] as const).map(t => {
+            {(['livret','cat','obligation','dividende','creance'] as const).map(t => {
               const total = items.filter(i => i.type === t).reduce((s, i) => s + i.annualAmount, 0)
               if (!total) return null
               return (
