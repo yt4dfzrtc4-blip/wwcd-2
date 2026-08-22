@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createServiceClient()
-  const { data: users } = await supabase.from('profiles').select('id')
+  const { data: { users } } = await supabase.auth.admin.listUsers()
 
   if (!users?.length) return NextResponse.json({ snapshots: 0 })
 
