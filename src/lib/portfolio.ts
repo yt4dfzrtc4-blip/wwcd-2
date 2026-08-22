@@ -130,6 +130,34 @@ export function buildPositions(
     })
   }
 
+  // Passe 3 : créances — valeur = capital initial - remboursements reçus
+  for (const asset of assets) {
+    if (asset.category !== 'creance') continue
+    const initial = (asset as any).creance_initial ?? 0
+    if (!initial) continue
+
+    // Somme des remboursements sur cet actif
+    const txs = transactions.filter(t => t.asset_id === asset.id && t.type === 'remboursement')
+    const repaid = txs.reduce((s, t) => s + t.quantity * t.price, 0)
+    const currentValue = Math.max(0, initial - repaid)
+
+    const acc = accounts[0] ?? { id: 'unknown', name: 'Créances', type: 'autre', created_at: '', user_id: '' } as Account
+
+    positions.push({
+      asset,
+      account: acc,
+      quantity: 1,
+      average_price: initial,
+      current_price: currentValue,
+      current_value: currentValue,
+      invested_value: initial,
+      pnl: currentValue - initial,
+      pnl_pct: initial > 0 ? ((currentValue - initial) / initial) * 100 : 0,
+      day_change: 0,
+      day_change_pct: 0,
+    })
+  }
+
   // Tri par valorisation décroissante
   return positions.sort((a, b) => b.current_value - a.current_value)
 }
@@ -205,6 +233,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   cat: 'CAT',
   per: 'PER',
   or: 'Or',
+  creance: 'Créances',
   autre: 'Autre',
 }
 
@@ -229,5 +258,6 @@ export const CATEGORY_COLORS: Record<string, string> = {
   obligation: '#D85A30',
   cat:        '#BA7517',
   per:        '#5DCAA5',
+  creance:    '#0EA5A0',
   autre:      '#B4B2A9',
 }

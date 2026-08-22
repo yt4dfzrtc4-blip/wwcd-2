@@ -180,9 +180,10 @@ export default function AssetsPage() {
                 </span>}
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
                   {a.category === 'obligation' && (
-                    <a href={`/obligations/${a.id}`} style={{ fontSize: 12, color: 'var(--brand)', textDecoration: 'none', padding: '4px 10px', border: '0.5px solid var(--brand)', borderRadius: 6, whiteSpace: 'nowrap' }}>
-                      Gérer
-                    </a>
+                    <a href={`/obligations/${a.id}`} style={{ fontSize: 12, color: 'var(--brand)', textDecoration: 'none', padding: '4px 10px', border: '0.5px solid var(--brand)', borderRadius: 6, whiteSpace: 'nowrap' }}>Gérer</a>
+                  )}
+                  {a.category === 'creance' && (
+                    <a href={`/creances/${a.id}`} style={{ fontSize: 12, color: '#0EA5A0', textDecoration: 'none', padding: '4px 10px', border: '0.5px solid #0EA5A0', borderRadius: 6, whiteSpace: 'nowrap' }}>Gérer</a>
                   )}
                   <button onClick={() => { setEditAsset(a); setShowAssetModal(true) }} style={iconBtn}><Pencil size={13} /></button>
                   <button onClick={() => deleteAsset(a.id)} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={13} /></button>
@@ -324,7 +325,7 @@ function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; a
 function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClose: () => void; onSuccess: () => void }) {
   const supabase = createClient()
   const router = useRouter()
-  const predefinedCategories = ['action','etf','crypto','obligation','livret','cat','per','or','autre']
+  const predefinedCategories = ['action','etf','crypto','obligation','livret','cat','per','or','creance','autre']
   const assetCategoryIsCustom = asset?.category && !predefinedCategories.includes(asset.category)
   const [form, setForm] = useState({
     name: asset?.name ?? '',
@@ -344,12 +345,17 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
     dividend_yield: (asset as any)?.dividend_yield?.toString() ?? '',
     dividend_frequency: (asset as any)?.dividend_frequency ?? 'annuelle',
     dividend_month: (asset as any)?.dividend_month?.toString() ?? '1',
+    creance_initial: (asset as any)?.creance_initial?.toString() ?? '',
+    creance_monthly: (asset as any)?.creance_monthly?.toString() ?? '',
+    creance_months: (asset as any)?.creance_months?.toString() ?? '',
+    creance_start_date: (asset as any)?.creance_start_date ?? '',
   })
   const [loading, setLoading] = useState(false)
   const [dividendFetching, setDividendFetching] = useState(false)
   const showLivretOptions = ['livret', 'cat', 'per', 'or'].includes(form.category)
   const showObligationOptions = form.category === 'obligation'
   const showDividendOptions = ['action', 'etf'].includes(form.category)
+  const showCreanceOptions = form.category === 'creance'
 
   useEffect(() => {
     if (!showDividendOptions || !form.ticker) return
@@ -398,6 +404,10 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
       dividend_yield: showDividendOptions && form.dividend_yield ? parseFloat(form.dividend_yield) : null,
       dividend_frequency: showDividendOptions ? form.dividend_frequency : null,
       dividend_month: showDividendOptions && form.dividend_month ? parseInt(form.dividend_month) : null,
+      creance_initial: showCreanceOptions && form.creance_initial ? parseFloat(form.creance_initial) : null,
+      creance_monthly: showCreanceOptions && form.creance_monthly ? parseFloat(form.creance_monthly) : null,
+      creance_months: showCreanceOptions && form.creance_months ? parseInt(form.creance_months) : null,
+      creance_start_date: showCreanceOptions && form.creance_start_date ? form.creance_start_date : null,
     }
     if (asset?.id) {
       await supabase.from('assets').update(payload).eq('id', asset.id)
@@ -405,9 +415,8 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
     } else {
       const { data: newAsset } = await supabase.from('assets').insert(payload).select('id').single()
       onSuccess(); onClose()
-      if (finalCategory === 'obligation' && newAsset?.id) {
-        router.push(`/obligations/${newAsset.id}`)
-      }
+      if (finalCategory === 'obligation' && newAsset?.id) router.push(`/obligations/${newAsset.id}`)
+      if (finalCategory === 'creance' && newAsset?.id) router.push(`/creances/${newAsset.id}`)
     }
   }
 
@@ -472,6 +481,14 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
           <Field label="Date d&apos;échéance">
             <input type="date" value={form.obligation_maturity} onChange={e => setForm(f => ({ ...f, obligation_maturity: e.target.value }))} style={inp} />
           </Field>
+        </>)}
+        {showCreanceOptions && (<>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <Field label="Capital prêté (€)"><input type="number" step="1" value={form.creance_initial} onChange={e => setForm(f => ({ ...f, creance_initial: e.target.value }))} placeholder="50000" style={inp} /></Field>
+            <Field label="Mensualité (€)"><input type="number" step="1" value={form.creance_monthly} onChange={e => setForm(f => ({ ...f, creance_monthly: e.target.value }))} placeholder="900" style={inp} /></Field>
+            <Field label="Durée (mois)"><input type="number" step="1" value={form.creance_months} onChange={e => setForm(f => ({ ...f, creance_months: e.target.value }))} placeholder="60" style={inp} /></Field>
+            <Field label="Date de début"><input type="date" value={form.creance_start_date} onChange={e => setForm(f => ({ ...f, creance_start_date: e.target.value }))} style={inp} /></Field>
+          </div>
         </>)}
         {showDividendOptions && (<>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
