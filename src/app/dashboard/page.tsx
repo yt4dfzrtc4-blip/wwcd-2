@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<'value' | 'pnl' | 'pnl_pct' | 'day' | 'name' | 'category'>('value')
   const [totalDebt, setTotalDebt] = useState(0)
+  const [backfilling, setBackfilling] = useState(false)
 
   useEffect(() => {
     const check = () => setMobile(window.innerWidth < 640)
@@ -126,6 +127,20 @@ export default function DashboardPage() {
     setRefreshing(false)
   }
 
+  async function handleBackfill() {
+    setBackfilling(true)
+    try {
+      const res = await fetch('/api/snapshot/backfill', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Erreur inconnue')
+      await loadData()
+    } catch (e: any) {
+      alert(`Échec de la reconstruction : ${e.message}`)
+    } finally {
+      setBackfilling(false)
+    }
+  }
+
   const totalValue = summary?.total_value ?? 0
   const netWorth = totalValue - totalDebt
 
@@ -161,7 +176,18 @@ export default function DashboardPage() {
         {/* Graphiques */}
         <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 16 }}>
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
-            <p style={sectionLabel}>Évolution</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <p style={{ ...sectionLabel, marginBottom: 0 }}>Évolution</p>
+              {snapshots.length <= 1 && (
+                <button
+                  onClick={handleBackfill}
+                  disabled={backfilling}
+                  style={{ fontSize: 11, color: 'var(--brand)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 6, padding: '3px 8px', cursor: backfilling ? 'default' : 'pointer', opacity: backfilling ? 0.6 : 1 }}
+                >
+                  {backfilling ? 'Reconstruction…' : 'Reconstruire l\'historique'}
+                </button>
+              )}
+            </div>
             <EvolutionChart snapshots={snapshots} hidden={privacy} />
           </div>
           <div style={{ background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: 16 }}>
