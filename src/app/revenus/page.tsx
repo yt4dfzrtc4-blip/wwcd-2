@@ -378,6 +378,9 @@ export default function RevenusPage() {
       const avgPrice = totalQty > 0 ? totalCost / totalQty : 0
       const currentPrice = rawPrice || avgPrice
       if (!currentPrice) continue
+      // Résidu de rounding après une liquidation quasi-totale (position fantôme à qty
+      // infinitésimale) : on ignore comme dans buildPositions() côté dashboard.
+      if (qty * currentPrice < 0.05) continue
 
       const annualDiv = qty * currentPrice * (dyield / 100)
       const monthly = Array(12).fill(0)
