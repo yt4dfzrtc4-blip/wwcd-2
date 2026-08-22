@@ -131,6 +131,8 @@ export function buildPositions(
   }
 
   // Passe 3 : créances — valeur = capital initial - remboursements reçus
+  const creanceAccount = { id: 'creances', name: 'Créances', type: 'autre', created_at: '', user_id: '' } as Account
+
   for (const asset of assets) {
     if (asset.category !== 'creance') continue
     const initial = (asset as any).creance_initial ?? 0
@@ -141,7 +143,7 @@ export function buildPositions(
     const repaid = txs.reduce((s, t) => s + t.quantity * t.price, 0)
     const currentValue = Math.max(0, initial - repaid)
 
-    const acc = accounts[0] ?? { id: 'unknown', name: 'Créances', type: 'autre', created_at: '', user_id: '' } as Account
+    const acc = creanceAccount
 
     positions.push({
       asset,
