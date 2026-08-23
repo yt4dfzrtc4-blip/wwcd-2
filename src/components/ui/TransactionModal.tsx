@@ -88,7 +88,7 @@ export default function TransactionModal({ onClose, onSuccess, editTransaction }
     }
 
     if (err) {
-      setError('Erreur lors de la sauvegarde.')
+      setError(`Erreur lors de la sauvegarde : ${err.message}`)
       setLoading(false)
     } else {
       onSuccess()
