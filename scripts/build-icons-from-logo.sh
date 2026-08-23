@@ -26,4 +26,10 @@ sips -p 192 192 --padColor "$BG" /tmp/wwcd-logo-134.png --out "$OUT/icon-192-mas
 
 rm -f /tmp/wwcd-logo-358.png /tmp/wwcd-logo-134.png
 
+# Netteté : le source (500x500) est proche des tailles cibles, le redimensionnement
+# adoucit légèrement les contours -> on compense avec un unsharp mask.
+for f in "$OUT/icon-512.png" "$OUT/icon-192.png" public/apple-touch-icon.png "$OUT/icon-512-maskable.png" "$OUT/icon-192-maskable.png"; do
+  node "$(dirname "$0")/sharpen-png.js" "$f" 0.6
+done
+
 echo "Icônes générées à partir de $SRC"
