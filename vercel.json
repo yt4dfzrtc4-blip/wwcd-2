@@ -8,5 +8,13 @@
       "path": "/api/snapshot",
       "schedule": "0 23 * * *"
     }
+  ],
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    }
   ]
 }
