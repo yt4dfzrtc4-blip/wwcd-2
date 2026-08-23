@@ -319,11 +319,13 @@ const sectionLabel: React.CSSProperties = { fontSize: 11, fontWeight: 500, color
 
 // Certains regroupements (ex: "Créances") sont virtuels — construits en mémoire par
 // buildPositions(), sans ligne réelle dans `accounts`/`banks`. Ils portent `virtual` +
-// `detailPath` (voir lib/portfolio.ts) pour router directement vers le détail de l'actif
-// quand il n'y en a qu'un, sans que le dashboard n'ait à connaître leur nature spécifique.
+// `detailPath` (voir lib/portfolio.ts) pour router vers le détail de l'actif quand il
+// n'y en a qu'un, ou vers l'index du regroupement (`detailPath` seul, ex: `/mobilier`)
+// s'il y en a plusieurs — sans que le dashboard n'ait à connaître leur nature spécifique.
 function groupLink(id: string, assetIds: string[], kind: 'account' | 'bank', virtual?: boolean, detailPath?: string): string | null {
   if (virtual) {
-    return assetIds.length === 1 && detailPath ? `${detailPath}/${assetIds[0]}` : null
+    if (!detailPath) return null
+    return assetIds.length === 1 ? `${detailPath}/${assetIds[0]}` : detailPath
   }
   if (!id) return null
   return kind === 'account' ? `/accounts/${id}` : `/banks/${id}`
