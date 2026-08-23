@@ -3,6 +3,7 @@
 import { usePrivacy } from '@/hooks/usePrivacy'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllPaginated } from '@/lib/supabase/paginate'
 import { formatEur, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfolio'
 import type { Transaction } from '@/types'
 import Topbar from '@/components/layout/Topbar'
@@ -124,19 +125,13 @@ export default function TransactionsPage() {
     const dataRows = rows.slice(1).filter(r => r.some(c => c !== ''))
 
     // Charger TOUTES les transactions existantes pour déduplication (pagination)
-    const allExisting: any[] = []
-    let exFrom = 0
-    while (true) {
-      const { data: exPage } = await supabase
+    const allExisting = await fetchAllPaginated<any>((from, to) =>
+      supabase
         .from('transactions')
         .select('date, type, asset_id, account_id, quantity, price')
         .eq('user_id', user.id)
-        .range(exFrom, exFrom + 999)
-      if (!exPage || exPage.length === 0) break
-      allExisting.push(...exPage)
-      if (exPage.length < 1000) break
-      exFrom += 1000
-    }
+        .range(from, to)
+    )
 
     const existingSet = new Set(
       allExisting.map(t => `${t.date}|${t.type}|${t.asset_id}|${t.account_id}|${t.quantity}|${t.price}`)
@@ -204,20 +199,14 @@ export default function TransactionsPage() {
     if (!confirm('Supprimer tous les doublons de transactions ? Cette action est irréversible.')) return
     setRemovingDupes(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setRemovingDupes(false); return }
 
     // Charger toutes les transactions
-    const all: any[] = []
-    let from = 0
-    while (true) {
-      const { data: page } = await supabase.from('transactions')
+    const all = await fetchAllPaginated<any>((from, to) =>
+      supabase.from('transactions')
         .select('id, date, type, asset_id, account_id, quantity, price')
-        .eq('user_id', user.id).order('created_at', { ascending: true }).range(from, from + 999)
-      if (!page || page.length === 0) break
-      all.push(...page)
-      if (page.length < 1000) break
-      from += 1000
-    }
+        .eq('user_id', user.id).order('created_at', { ascending: true }).range(from, to)
+    )
 
     const seen = new Set<string>()
     const toDelete: string[] = []

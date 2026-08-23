@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllPaginated } from '@/lib/supabase/paginate'
 import { usePrivacy } from '@/hooks/usePrivacy'
 import { buildPositions, buildPortfolioSummary, formatEur, formatPct, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfolio'
 import Topbar from '@/components/layout/Topbar'
@@ -37,18 +38,12 @@ export default function AccountPage() {
     setAccount(acc)
 
     // Toutes les transactions en pagination
-    const allTx: any[] = []
-    let from = 0
-    while (true) {
-      const { data: page } = await supabase
+    const allTx = await fetchAllPaginated<any>((from, to) =>
+      supabase
         .from('transactions')
         .select('*, asset:assets(*, prices(*)), account:accounts(*, bank:banks(*))')
-        .range(from, from + 999)
-      if (!page || page.length === 0) break
-      allTx.push(...page)
-      if (page.length < 1000) break
-      from += 1000
-    }
+        .range(from, to)
+    )
 
     const allPositions = buildPositions(allTx, assets ?? [], accounts ?? [])
     const accountPositions = allPositions.filter((p: any) => p.account.id === id)

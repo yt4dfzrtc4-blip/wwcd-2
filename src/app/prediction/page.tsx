@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllPaginated } from '@/lib/supabase/paginate'
 import { buildPositions, buildPortfolioSummary, formatEur, CATEGORY_LABELS } from '@/lib/portfolio'
 import { usePrivacy } from '@/hooks/usePrivacy'
 import Topbar from '@/components/layout/Topbar'
@@ -205,18 +206,12 @@ export default function PredictionPage() {
       supabase.from('accounts').select('*'),
     ])
 
-    const allTx: any[] = []
-    let from = 0
-    while (true) {
-      const { data: page } = await supabase
+    const allTx = await fetchAllPaginated<any>((from, to) =>
+      supabase
         .from('transactions')
         .select('*, asset:assets(*, prices(*)), account:accounts(*)')
-        .range(from, from + 999)
-      if (!page || page.length === 0) break
-      allTx.push(...page)
-      if (page.length < 1000) break
-      from += 1000
-    }
+        .range(from, to)
+    )
 
     const positions = buildPositions(allTx, assets ?? [], accounts ?? [])
     const bycat: Record<string, number> = {}

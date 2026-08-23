@@ -3,6 +3,7 @@
 import { usePrivacy } from '@/hooks/usePrivacy'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllPaginated } from '@/lib/supabase/paginate'
 import { buildPositions, buildPortfolioSummary, formatEur, formatPct, CATEGORY_LABELS, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfolio'
 import type { PortfolioSummary, Snapshot, Position } from '@/types'
 import Topbar from '@/components/layout/Topbar'
@@ -46,20 +47,12 @@ export default function DashboardPage() {
     ])
 
     // Récupérer TOUTES les transactions par pages
-    const allTransactions: any[] = []
-    const PAGE = 1000
-    let from = 0
-    while (true) {
-      const { data: page } = await supabase
+    const transactions = await fetchAllPaginated<any>((from, to) =>
+      supabase
         .from('transactions')
         .select('*, asset:assets(*, prices(*)), account:accounts(*, bank:banks(*))')
-        .range(from, from + PAGE - 1)
-      if (!page || page.length === 0) break
-      allTransactions.push(...page)
-      if (page.length < PAGE) break
-      from += PAGE
-    }
-    const transactions = allTransactions
+        .range(from, to)
+    )
 
     if (transactions && assets && accounts) {
       const positions = buildPositions(transactions as any, assets as any, accounts as any)

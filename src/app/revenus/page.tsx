@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllPaginated } from '@/lib/supabase/paginate'
 import { usePrivacy } from '@/hooks/usePrivacy'
 import Topbar from '@/components/layout/Topbar'
 import { differenceInDays, format, subDays, addMonths } from 'date-fns'
@@ -45,21 +46,13 @@ export default function RevenusPage() {
     ])
 
     // Récupérer TOUTES les transactions par pages de 1000
-    const allTransactions: any[] = []
-    const PAGE = 1000
-    let from = 0
-    while (true) {
-      const { data: page } = await supabase
+    const transactions = await fetchAllPaginated<any>((from, to) =>
+      supabase
         .from('transactions')
         .select('*, asset:assets(name, category)')
         .order('date', { ascending: true })
-        .range(from, from + PAGE - 1)
-      if (!page || page.length === 0) break
-      allTransactions.push(...page)
-      if (page.length < PAGE) break
-      from += PAGE
-    }
-    const transactions = allTransactions
+        .range(from, to)
+    )
 
     // Auto-fetch dividend info from Yahoo pour les actifs action/ETF (avec timeout 3s)
     const divInfoCache: Record<string, { dividendYield: number | null; frequency: string | null; month: number | null }> = {}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllPaginated } from '@/lib/supabase/paginate'
 import { buildPositions, buildPortfolioSummary } from '@/lib/portfolio'
 
 const PERIOD_DAYS: Record<string, number> = {
@@ -72,17 +73,9 @@ async function getLiveValue(supabase: any, userId: string): Promise<number> {
     ])
 
     // Transactions paginées
-    const allTx: any[] = []
-    let from = 0
-    while (true) {
-      const { data: page } = await supabase
-        .from('transactions').select('*').eq('user_id', userId)
-        .range(from, from + 999)
-      if (!page || page.length === 0) break
-      allTx.push(...page)
-      if (page.length < 1000) break
-      from += 1000
-    }
+    const allTx = await fetchAllPaginated<any>((from, to) =>
+      supabase.from('transactions').select('*').eq('user_id', userId).range(from, to)
+    )
 
     const positions = buildPositions(allTx, assets ?? [], accounts ?? [])
     const summary = buildPortfolioSummary(positions)

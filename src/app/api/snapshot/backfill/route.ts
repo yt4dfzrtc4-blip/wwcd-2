@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllPaginated } from '@/lib/supabase/paginate'
 import { buildPositions, buildPortfolioSummary } from '@/lib/portfolio'
 import type { Transaction, Asset, Account } from '@/types'
 
@@ -57,15 +58,9 @@ export async function POST() {
   ])
   if (!assets || !accounts) return NextResponse.json({ error: 'Données manquantes' }, { status: 500 })
 
-  const allTransactions: Transaction[] = []
-  let from = 0
-  while (true) {
-    const { data: page } = await supabase.from('transactions').select('*').eq('user_id', user.id).range(from, from + 999)
-    if (!page || page.length === 0) break
-    allTransactions.push(...(page as any))
-    if (page.length < 1000) break
-    from += 1000
-  }
+  const allTransactions = await fetchAllPaginated<Transaction>((from, to) =>
+    supabase.from('transactions').select('*').eq('user_id', user.id).range(from, to)
+  )
   if (!allTransactions.length) return NextResponse.json({ error: 'Aucune transaction' }, { status: 400 })
 
   const tickers = Array.from(new Set(

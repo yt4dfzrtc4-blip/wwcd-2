@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { fetchAllPaginated } from '@/lib/supabase/paginate'
 import { buildPositions, buildPortfolioSummary } from '@/lib/portfolio'
 
 async function takeSnapshot(supabase: ReturnType<typeof createServiceClient>, userId: string) {
   const today = new Date().toISOString().split('T')[0]
 
-  const [{ data: transactions }, { data: assets }, { data: accounts }] = await Promise.all([
-    supabase.from('transactions').select('*, asset:assets(*, prices(*))').eq('user_id', userId),
+  const [transactions, { data: assets }, { data: accounts }] = await Promise.all([
+    fetchAllPaginated<any>((from, to) =>
+      supabase.from('transactions').select('*, asset:assets(*, prices(*))').eq('user_id', userId).range(from, to)
+    ),
     supabase.from('assets').select('*, prices(*)').eq('user_id', userId),
     supabase.from('accounts').select('*').eq('user_id', userId),
   ])

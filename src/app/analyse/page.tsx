@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllPaginated } from '@/lib/supabase/paginate'
 import { buildPositions, buildPortfolioSummary, formatEur, CATEGORY_LABELS, CATEGORY_COLORS } from '@/lib/portfolio'
 import { usePrivacy } from '@/hooks/usePrivacy'
 import Topbar from '@/components/layout/Topbar'
@@ -158,18 +159,12 @@ export default function AnalysePage() {
       supabase.from('snapshots').select('*').order('date', { ascending: true }),
     ])
 
-    const txList: any[] = []
-    let from = 0
-    while (true) {
-      const { data: page } = await supabase
+    const txList = await fetchAllPaginated<any>((from, to) =>
+      supabase
         .from('transactions')
         .select('*, asset:assets(*, prices(*)), account:accounts(*)')
-        .range(from, from + 999)
-      if (!page || page.length === 0) break
-      txList.push(...page)
-      if (page.length < 1000) break
-      from += 1000
-    }
+        .range(from, to)
+    )
     setAllTx(txList)
 
     const pos = buildPositions(txList, assets ?? [], accounts ?? [])
