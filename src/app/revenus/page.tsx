@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAllPaginated } from '@/lib/supabase/paginate'
+import { calculatePosition } from '@/lib/portfolio'
 import { usePrivacy } from '@/hooks/usePrivacy'
 import Topbar from '@/components/layout/Topbar'
 import { differenceInDays, format, subDays, addMonths } from 'date-fns'
@@ -296,8 +297,7 @@ export default function RevenusPage() {
       // Estimation si pas encore de coupons enregistrés
       if (!coupon) continue
       // qty = nominal total détenu en € (depuis les transactions ou fallback sur obligation_nominal)
-      let qty = txs.filter((t: any) => t.type === 'achat').reduce((s: number, t: any) => s + t.quantity, 0)
-        - txs.filter((t: any) => t.type === 'vente' || t.type === 'remboursement').reduce((s: number, t: any) => s + t.quantity, 0)
+      let qty = calculatePosition(txs).quantity
       if (!qty && nominal > 0) qty = nominal  // fallback sur le nominal renseigné dans l'actif
       if (!qty) continue
 
@@ -360,15 +360,11 @@ export default function RevenusPage() {
       const startMonth = Math.max(0, ((yahooInfo?.month ?? (asset as any).dividend_month ?? 1) - 1))
 
       const txs = (transactions ?? []).filter((t: any) => t.asset_id === asset.id)
-      const qty = txs.filter((t: any) => t.type === 'achat').reduce((s: number, t: any) => s + t.quantity, 0)
-        - txs.filter((t: any) => t.type === 'vente').reduce((s: number, t: any) => s + t.quantity, 0)
+      const { quantity: qty, averagePrice: avgPrice } = calculatePosition(txs)
       if (qty <= 0) continue
 
       // Utiliser le cours actuel, sinon le PRU calculé depuis les transactions
       const rawPrice = (asset as any).prices?.price
-      const totalCost = txs.filter((t: any) => t.type === 'achat').reduce((s: number, t: any) => s + t.quantity * t.price, 0)
-      const totalQty = txs.filter((t: any) => t.type === 'achat').reduce((s: number, t: any) => s + t.quantity, 0)
-      const avgPrice = totalQty > 0 ? totalCost / totalQty : 0
       const currentPrice = rawPrice || avgPrice
       if (!currentPrice) continue
       // Résidu de rounding après une liquidation quasi-totale (position fantôme à qty
