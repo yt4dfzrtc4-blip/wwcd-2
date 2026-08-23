@@ -42,7 +42,7 @@ const MILESTONE_LABELS: Record<number, string> = {
 }
 
 const SCENARIO_COLORS = {
-  base:        '#534AB7',
+  base:        '#004AAD',
   pessimistic: '#D85A30',
   optimistic:  '#1D9E75',
 }
@@ -655,8 +655,8 @@ export default function PredictionPage() {
                       <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="gradContrib" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#534AB7" stopOpacity={0.25} />
-                            <stop offset="100%" stopColor="#534AB7" stopOpacity={0.08} />
+                            <stop offset="0%" stopColor="#004AAD" stopOpacity={0.25} />
+                            <stop offset="100%" stopColor="#004AAD" stopOpacity={0.08} />
                           </linearGradient>
                           <linearGradient id="gradGains" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#1D9E75" stopOpacity={0.35} />
@@ -713,7 +713,7 @@ export default function PredictionPage() {
                       { color: SCENARIO_COLORS.base, label: 'Base', dash: false },
                       { color: SCENARIO_COLORS.optimistic, label: 'Optimiste', dash: true },
                       { color: '#1D9E75', label: 'Gains', area: true },
-                      { color: '#534AB7', label: 'Apports', area: true },
+                      { color: '#004AAD', label: 'Apports', area: true },
                     ].map(({ color, label, dash, area }) => (
                       <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         {area ? (

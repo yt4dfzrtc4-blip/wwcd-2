@@ -100,14 +100,14 @@ export default function EvolutionChart({ snapshots, hidden }: EvolutionChartProp
             <AreaChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="brandGrad2" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#534AB7" stopOpacity={0.15} />
-                  <stop offset="100%" stopColor="#534AB7" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#004AAD" stopOpacity={0.15} />
+                  <stop offset="100%" stopColor="#004AAD" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="date" tickFormatter={tickFormat} tick={{ fontSize: 10, fill: 'var(--muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
               <YAxis hide domain={['auto', 'auto']} />
               <Tooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="value" stroke="#534AB7" strokeWidth={1.8} fill="url(#brandGrad2)" dot={false} activeDot={{ r: 3, fill: '#534AB7', strokeWidth: 0 }} />
+              <Area type="monotone" dataKey="value" stroke="#004AAD" strokeWidth={1.8} fill="url(#brandGrad2)" dot={false} activeDot={{ r: 3, fill: '#004AAD', strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
         )}

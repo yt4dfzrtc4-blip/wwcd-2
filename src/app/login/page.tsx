@@ -42,8 +42,15 @@ export default function LoginPage() {
         maxWidth: 380,
       }}>
         <div style={{ marginBottom: 32, textAlign: 'center' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 500, letterSpacing: '0.06em', color: 'var(--brand)' }}>WWCD</h1>
-          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 6 }}>Accès à votre patrimoine</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/icons/icon-192.png"
+            alt="WWCD"
+            width={64}
+            height={64}
+            style={{ borderRadius: 16, border: '0.5px solid var(--border)', marginBottom: 14 }}
+          />
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>Accès à votre patrimoine</p>
         </div>
 
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
