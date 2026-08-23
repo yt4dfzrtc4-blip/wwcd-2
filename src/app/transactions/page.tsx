@@ -4,7 +4,7 @@ import { usePrivacy } from '@/hooks/usePrivacy'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAllPaginated } from '@/lib/supabase/paginate'
-import { formatEur, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfolio'
+import { formatEur, getCategoryLabel, getCategoryBadgeClass, TX_TYPE_LABELS as TX_LABEL, TX_TYPE_COLORS as TX_COLOR } from '@/lib/portfolio'
 import type { Transaction } from '@/types'
 import Topbar from '@/components/layout/Topbar'
 import TransactionModal from '@/components/ui/TransactionModal'
@@ -13,15 +13,6 @@ import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import * as XLSX from 'xlsx'
 import { useRef } from 'react'
-
-const TX_LABEL: Record<string, string> = {
-  achat: 'Achat', vente: 'Vente', dividende: 'Dividende',
-  interets: 'Intérêts', coupon: 'Coupon', remboursement: 'Remboursement',
-}
-const TX_COLOR: Record<string, string> = {
-  achat: 'var(--brand)', vente: 'var(--red)', dividende: 'var(--green)',
-  interets: 'var(--green)', coupon: '#EF9F27', remboursement: 'var(--green)',
-}
 
 export default function TransactionsPage() {
   const supabase = createClient()

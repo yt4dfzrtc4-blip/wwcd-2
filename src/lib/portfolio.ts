@@ -236,6 +236,30 @@ export function formatPct(value: number): string {
 }
 
 /**
+ * Label et couleur lisibles pour un type de transaction. Toujours utiliser
+ * cette table plutôt qu'un ternaire achat/vente : les types dividende/interets/
+ * coupon/remboursement existent depuis longtemps et un ternaire binaire les
+ * fait passer pour des "Vente" à tort.
+ */
+export const TX_TYPE_LABELS: Record<string, string> = {
+  achat: 'Achat',
+  vente: 'Vente',
+  dividende: 'Dividende',
+  interets: 'Intérêts',
+  coupon: 'Coupon',
+  remboursement: 'Remboursement',
+}
+
+export const TX_TYPE_COLORS: Record<string, string> = {
+  achat: 'var(--brand)',
+  vente: 'var(--red)',
+  dividende: 'var(--green)',
+  interets: 'var(--green)',
+  coupon: '#EF9F27',
+  remboursement: 'var(--green)',
+}
+
+/**
  * Label lisible pour une catégorie.
  */
 export const CATEGORY_LABELS: Record<string, string> = {
@@ -261,6 +285,19 @@ export function getCategoryColor(category: string): string {
 
 export function getCategoryBadgeClass(category: string): string {
   return CATEGORY_LABELS[category] ? `badge-${category}` : 'badge-autre'
+}
+
+/**
+ * Route de détail d'une position. Livrets et CAT ont des pages dédiées
+ * indexées par l'ID du COMPTE (pas de l'actif) — s'y tromper amène sur la
+ * fiche actif générique (PRU/Quantité, Achat/Vente/Dividende) au lieu de la
+ * page adaptée (Solde, Dépôt/Retrait/Intérêts).
+ */
+export function getPositionDetailPath(pos: Position): string {
+  if (pos.asset.category === 'creance') return `/creances/${pos.asset.id}`
+  if (pos.account.type === 'livret') return `/livrets/${pos.account.id}`
+  if (pos.account.type === 'cat') return `/cat/${pos.account.id}`
+  return `/assets/${pos.asset.id}`
 }
 
 export const CATEGORY_COLORS: Record<string, string> = {

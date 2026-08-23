@@ -4,7 +4,7 @@ import { usePrivacy } from '@/hooks/usePrivacy'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAllPaginated } from '@/lib/supabase/paginate'
-import { buildPositions, buildPortfolioSummary, formatEur, formatPct, CATEGORY_LABELS, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfolio'
+import { buildPositions, buildPortfolioSummary, formatEur, formatPct, CATEGORY_LABELS, getCategoryLabel, getCategoryBadgeClass, getPositionDetailPath } from '@/lib/portfolio'
 import type { PortfolioSummary, Snapshot, Position } from '@/types'
 import Topbar from '@/components/layout/Topbar'
 import KpiCard from '@/components/ui/KpiCard'
@@ -300,10 +300,7 @@ export default function DashboardPage() {
                 default: return b.current_value - a.current_value
               }
             }).map(pos => (
-              <PositionRow key={`${pos.asset.id}-${pos.account.id}`} pos={pos} hidden={privacy} mobile={mobile} totalValue={totalValue} onClick={() => {
-                if (pos.asset.category === 'creance') router.push(`/creances/${pos.asset.id}`)
-                else router.push(`/assets/${pos.asset.id}`)
-              }} />
+              <PositionRow key={`${pos.asset.id}-${pos.account.id}`} pos={pos} hidden={privacy} mobile={mobile} totalValue={totalValue} onClick={() => router.push(getPositionDetailPath(pos))} />
             ))
           )}
         </div>

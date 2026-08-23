@@ -4,7 +4,7 @@ import { usePrivacy } from '@/hooks/usePrivacy'
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { calculatePosition, formatEur, formatPct } from '@/lib/portfolio'
+import { calculatePosition, formatEur, formatPct, TX_TYPE_LABELS, TX_TYPE_COLORS } from '@/lib/portfolio'
 import type { Asset, Transaction, Account } from '@/types'
 import Topbar from '@/components/layout/Topbar'
 import TransactionModal from '@/components/ui/TransactionModal'
@@ -196,8 +196,8 @@ export default function AssetDetailPage() {
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               <span style={{ color: 'var(--muted)' }}>{format(parseISO(tx.date), 'd MMM yy', { locale: fr })}</span>
-              <span style={{ color: tx.type === 'achat' ? 'var(--green)' : 'var(--red)', fontWeight: 500 }}>
-                {tx.type === 'achat' ? 'Achat' : 'Vente'}
+              <span style={{ color: TX_TYPE_COLORS[tx.type] ?? 'var(--muted)', fontWeight: 500 }}>
+                {TX_TYPE_LABELS[tx.type] ?? tx.type}
               </span>
               <span style={{ filter: privacy ? 'blur(5px)' : 'none' }}>{tx.quantity.toFixed(4)} u.</span>
               <span style={{ filter: privacy ? 'blur(5px)' : 'none' }}>{formatEur(tx.price)} /u.</span>

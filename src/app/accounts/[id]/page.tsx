@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAllPaginated } from '@/lib/supabase/paginate'
 import { usePrivacy } from '@/hooks/usePrivacy'
-import { buildPositions, buildPortfolioSummary, formatEur, formatPct, getCategoryLabel, getCategoryBadgeClass } from '@/lib/portfolio'
+import { buildPositions, buildPortfolioSummary, formatEur, formatPct, getCategoryLabel, getCategoryBadgeClass, getPositionDetailPath } from '@/lib/portfolio'
 import Topbar from '@/components/layout/Topbar'
 import { ArrowLeft, ChevronRight } from 'lucide-react'
 
@@ -126,7 +126,7 @@ export default function AccountPage() {
               const weight = totalValue > 0 ? (pos.current_value / totalValue) * 100 : 0
               return (
                 <div key={`${pos.asset.id}`}
-                  onClick={() => router.push(`/assets/${pos.asset.id}`)}
+                  onClick={() => router.push(getPositionDetailPath(pos))}
                   style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 80px 90px 40px' : '1fr 90px 110px 50px 70px 20px', gap: 8, padding: '9px 16px', borderTop: '0.5px solid var(--border)', cursor: 'pointer', alignItems: 'center', fontSize: 13 }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
