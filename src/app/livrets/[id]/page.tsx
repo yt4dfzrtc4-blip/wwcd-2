@@ -282,8 +282,11 @@ function MovementModal({ type, accountId, assetId, onClose, onSuccess }: {
       account_id: accountId,
       asset_id: assetId,
       type,
-      quantity: 1,
-      price: parseFloat(amount),
+      // Convention cohérente avec les achats/ventes existants sur cet actif :
+      // quantity = montant en €, price = 1 (et non l'inverse) — nécessaire pour
+      // que calculatePosition() (utilisée par le dashboard) calcule le bon total.
+      quantity: parseFloat(amount),
+      price: 1,
       date,
       notes: note || null,
     })

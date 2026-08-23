@@ -17,7 +17,9 @@ export function calculatePosition(transactions: Transaction[]): {
   )
 
   for (const tx of sorted) {
-    if (tx.type === 'achat') {
+    if (tx.type === 'achat' || tx.type === 'interets') {
+      // Intérêts (livrets, CAT) : traités comme un dépôt — l'argent gagné
+      // reste dans la position, exactement comme un achat.
       totalCost += tx.quantity * tx.price
       quantity += tx.quantity
     } else if (tx.type === 'vente' || tx.type === 'remboursement') {

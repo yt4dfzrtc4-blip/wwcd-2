@@ -296,8 +296,11 @@ export default function RevenusPage() {
 
       // Estimation si pas encore de coupons enregistrés
       if (!coupon) continue
-      // qty = nominal total détenu en € (depuis les transactions ou fallback sur obligation_nominal)
-      let qty = calculatePosition(txs).quantity
+      // qty = nominal total détenu en € (depuis achat/vente uniquement — on exclut les
+      // coupons déjà comptés ci-dessus, sinon calculatePosition() les additionnerait
+      // au nominal détenu au lieu de les traiter comme un revenu séparé)
+      const positionTxs = txs.filter((t: any) => t.type === 'achat' || t.type === 'vente' || t.type === 'remboursement')
+      let qty = calculatePosition(positionTxs).quantity
       if (!qty && nominal > 0) qty = nominal  // fallback sur le nominal renseigné dans l'actif
       if (!qty) continue
 
