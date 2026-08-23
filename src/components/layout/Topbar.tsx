@@ -21,22 +21,24 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
   const [menuOpen, setMenuOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
-  function handleRefresh() {
+  async function handleRefresh() {
     if (refreshing) return
     setRefreshing(true)
-    fetch('/api/prices/refresh', { method: 'POST' })
-      .then(r => r.json())
-      .then(json => {
-        onRefresh?.()
-        if (json?.errors?.length) {
-          alert(`Cours non récupérés pour ${json.errors.length} actif(s) : ${json.errors.join(', ')}`)
-        }
-      })
-      .catch(() => alert('Échec de la récupération des cours.'))
-      .finally(() => setRefreshing(false))
+    try {
+      const res = await fetch('/api/prices/refresh', { method: 'POST' })
+      const json = await res.json()
+      await onRefresh?.()
+      if (json?.errors?.length) {
+        alert(`Cours non récupérés pour ${json.errors.length} actif(s) : ${json.errors.join(', ')}`)
+      }
+    } catch {
+      alert('Échec de la récupération des cours.')
+    } finally {
+      setRefreshing(false)
+    }
   }
 
-  const isRefreshing = refreshingProp ?? refreshing
+  const isRefreshing = refreshing || !!refreshingProp
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640)
