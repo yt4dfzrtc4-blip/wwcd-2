@@ -78,13 +78,17 @@ export default function Topbar({ privacy, onTogglePrivacy, onRefresh, refreshing
         zIndex: 200,
       }}>
         {/* Logo */}
-        <span onClick={() => router.push('/dashboard')} style={{
-          fontSize: 15, fontWeight: 500, color: 'var(--brand)',
-          letterSpacing: '0.06em', marginRight: mobile ? 'auto' : 32, flexShrink: 0,
-          cursor: 'pointer',
-        }}>
-          WWCD
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo-mark.png"
+          alt="WWCD"
+          onClick={() => router.push('/dashboard')}
+          style={{
+            height: 26, width: 'auto',
+            marginRight: mobile ? 'auto' : 32, flexShrink: 0,
+            cursor: 'pointer',
+          }}
+        />
 
         {/* Nav desktop */}
         {!mobile && (
