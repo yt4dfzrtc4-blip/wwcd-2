@@ -27,5 +27,20 @@ Contexte : app de suivi de patrimoine perso. Repo local /Users/williamquaile/Des
 - Fiscalité : approximation, pas un conseil fiscal. Pas de distinction livret réglementé vs bancaire classique. Créances taxées au PFU par défaut (approximation, pas de barème IR réel).
 - Roadmap déjà connue (non commencée) : benchmark MSCI World/CAC40, alertes de seuil, export PDF, TWRR annualisée, immobilier (+ passif lié), import CSV/OFX, multi-devise, PWA.
 
+**3. Prédiction Monte Carlo** (`/prediction`, déployé en prod)
+- Toggle "Scénarios" (ancienne vue 3 courbes, conservée) / "Monte Carlo" (nouveau).
+- 500 simulations, tirage aléatoire du rendement annuel par catégorie (loi normale, Box-Muller). Moyenne = taux "Base" existant, écart-type dérivé de l'écart pessimiste/optimiste déjà réglé par l'utilisateur (pas de nouveau champ).
+- Graphe en fourchette (bande 10e-90e centile + médiane) + badge "Probabilité d'atteindre l'objectif" avec année médiane d'atteinte.
+
+## Discussion en cours (non résolue) — invitation d'un second utilisateur
+- Besoin : créer un second compte de connexion **séparé** (pas de partage de patrimoine, RLS déjà cloisonnée par `user_id` donc rien à coder côté app).
+- Blocage rencontré : Supabase → Authentication → Users → "Send invitation" échoue avec `email rate limit exceeded` (limite basse du service mail intégré par défaut).
+- Décision prise par l'utilisateur : configurer un **SMTP personnalisé** (Resend recommandé, gratuit jusqu'à 3000 emails/mois) plutôt que d'attendre le reset de la limite. Étapes détaillées données (compte Resend → domaine/clé API → Supabase Authentication → Settings → SMTP Settings) mais **pas confirmé comme fait** par l'utilisateur — à vérifier/reprendre à la prochaine session.
+
+## Pistes évoquées et écartées pour l'instant
+- Agrégation bancaire automatique (DSP2/open banking) : jugée trop complexe pour un usage strictement perso.
+- Benchmark vs indices (MSCI World/CAC40) : expliqué, l'utilisateur a dit "pas besoin" pour l'instant.
+- Assurance-vie comme catégorie d'actif : identifié comme le plus gros trou fonctionnel restant (placement le plus courant en France, absent de `CATEGORY_LABELS`), mais pas encore demandé explicitement par l'utilisateur — à proposer si pertinent.
+
 ## Pour vérifier l'état actuel
-Dernier déploiement prod OK (23/08/2026), validé par l'utilisateur. Migration 005 exécutée côté Supabase, confirmée par l'utilisateur.
+Dernier déploiement prod OK (23/08/2026), incluant perf par compte + fiscalité + Monte Carlo. Migration 005 exécutée côté Supabase, confirmée par l'utilisateur.
