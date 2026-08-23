@@ -263,6 +263,37 @@ export default function AnalysePage() {
     return { cat: c, label: CATEGORY_LABELS[c] ?? c, pnl, pct, value: val, color: CATEGORY_COLORS[c] ?? '#B4B2A9' }
   }).sort((a, b) => b.pct - a.pct)
 
+  // Performance par compte/banque — regroupe les positions par account_id, réutilise
+  // xirr() sur les flux propres à ce compte pour un rendement annualisé comparable.
+  const perfByAccount = useMemo(() => {
+    const byAcc = new Map<string, { name: string; invested: number; value: number; pnl: number }>()
+    for (const p of positions) {
+      const key = p.account.id
+      const label = p.account.bank?.name ? `${p.account.bank.name} — ${p.account.name}` : p.account.name
+      const entry = byAcc.get(key) ?? { name: label, invested: 0, value: 0, pnl: 0 }
+      entry.invested += p.invested_value
+      entry.value += p.current_value
+      entry.pnl += p.pnl
+      byAcc.set(key, entry)
+    }
+
+    return Array.from(byAcc.entries()).map(([accountId, e]) => {
+      const achats = allTx.filter((t: any) => t.account_id === accountId && t.type === 'achat')
+      const ventes = allTx.filter((t: any) => t.account_id === accountId && (t.type === 'vente' || t.type === 'remboursement'))
+      let accountXirr: number | null = null
+      if (achats.length > 0) {
+        const cfs: { date: Date; amount: number }[] = []
+        for (const t of achats) cfs.push({ date: new Date(t.date), amount: -(t.quantity * t.price) })
+        for (const t of ventes) cfs.push({ date: new Date(t.date), amount: t.quantity * t.price })
+        cfs.push({ date: new Date(), amount: e.value })
+        cfs.sort((a, b) => a.date.getTime() - b.date.getTime())
+        accountXirr = xirr(cfs)
+      }
+      const pct = e.invested > 0 ? e.pnl / e.invested * 100 : 0
+      return { accountId, name: e.name, invested: e.invested, value: e.value, pnl: e.pnl, pct, xirr: accountXirr }
+    }).sort((a, b) => b.pct - a.pct)
+  }, [positions, allTx])
+
   // ── Prêts ────────────────────────────────────────────────────────────────────
 
   const totalDebt = loans.reduce((s, l) => s + l.remaining_amount, 0)
@@ -662,6 +693,32 @@ export default function AnalysePage() {
                           color: p.pct >= 0 ? 'var(--green)' : 'var(--red)',
                         }}>
                           {p.pct >= 0 ? '+' : ''}{p.pct.toFixed(2)} %
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </SectionCard>
+
+                {/* Performance par compte/banque */}
+                <SectionCard>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Performance par compte</p>
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    {perfByAccount.map(a => (
+                      <div key={a.accountId} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 12, flex: 1, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {a.name}
+                        </span>
+                        <span style={{ fontSize: 10, color: 'var(--muted)', minWidth: 56, textAlign: 'right' }}>
+                          {a.xirr !== null ? `${a.xirr >= 0 ? '+' : ''}${(a.xirr * 100).toFixed(1)}%/an` : '–'}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)', filter: privacy ? 'blur(5px)' : 'none', minWidth: 80, textAlign: 'right' }}>
+                          {a.pnl >= 0 ? '+' : ''}{formatEur(a.pnl, 0)}
+                        </span>
+                        <span style={{
+                          fontSize: 12, fontWeight: 600, minWidth: 60, textAlign: 'right',
+                          color: a.pct >= 0 ? 'var(--green)' : 'var(--red)',
+                        }}>
+                          {a.pct >= 0 ? '+' : ''}{a.pct.toFixed(2)} %
                         </span>
                       </div>
                     ))}
