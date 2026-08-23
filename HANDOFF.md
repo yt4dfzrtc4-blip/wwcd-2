@@ -50,5 +50,12 @@ Contexte : app de suivi de patrimoine perso. Repo local /Users/williamquaile/Des
 - Benchmark vs indices (MSCI World/CAC40) : expliqué, l'utilisateur a dit "pas besoin" pour l'instant.
 - Assurance-vie comme catégorie d'actif : identifié comme le plus gros trou fonctionnel restant (placement le plus courant en France, absent de `CATEGORY_LABELS`), mais pas encore demandé explicitement par l'utilisateur — à proposer si pertinent.
 
+## PWA — suite (icône trouble sur iPhone)
+- Après premier test d'installation, l'icône WWCD apparaissait nettement plus floue/pâle que les icônes d'apps natives voisines (LCL, CIC, Trade Republic...) sur l'écran d'accueil de l'utilisateur.
+- Cause : `logo-source.png` ne fait que 500×500 px (export Canva, confirmé par l'utilisateur comme étant la meilleure résolution disponible) — un peu juste pour les grandes tailles d'icônes iOS actuelles.
+- Correctif appliqué : `scripts/sharpen-png.js` (unsharp mask maison, décodage/réencodage PNG manuel comme le reste du pipeline, pas de dépendance) appliqué sur chaque icône générée dans `scripts/build-icons-from-logo.sh` (force 0.6). Nettement plus net après test visuel.
+- Redéployé en prod (23/08/2026).
+- **Important pour l'utilisateur** : iOS met en cache l'icône au moment du "Sur l'écran d'accueil" — il faut supprimer l'icône WWCD existante et refaire l'ajout à l'écran d'accueil pour voir la version corrigée (une simple actualisation de la page ne suffit pas).
+
 ## Pour vérifier l'état actuel
-Dernier déploiement prod OK (23/08/2026), incluant perf par compte + fiscalité + Monte Carlo. Migration 005 exécutée côté Supabase, confirmée par l'utilisateur. PWA implémentée en local avec le vrai logo (build validé), déploiement et test d'installation mobile à confirmer.
+Dernier déploiement prod OK (23/08/2026), incluant perf par compte + fiscalité + Monte Carlo + PWA (logo réel, icônes affinées). Migration 005 exécutée côté Supabase, confirmée par l'utilisateur. Reste à confirmer : rendu de l'icône après réinstallation sur l'écran d'accueil, et les 4 tickers en échec de récupération de cours (APO, BSDE.DE, ALGBE.PA, ASML.DE — probablement mal orthographiés sauf APO, à vérifier dans `/assets`).
