@@ -276,6 +276,7 @@ function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; a
     type: accountTypeIsCustom ? 'autre' : (account?.type ?? 'pea'),
     bank_id: (account as any)?.bank_id ?? '',
     customType: accountTypeIsCustom ? account!.type : '',
+    opened_at: account?.opened_at ?? '',
   })
   const [loading, setLoading] = useState(false)
 
@@ -285,7 +286,7 @@ function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; a
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
     const finalType = form.type === 'autre' && form.customType ? form.customType.toLowerCase().replace(/\s+/g, '_') : form.type
-    const payload = { name: form.name, type: finalType, bank_id: form.bank_id || null }
+    const payload = { name: form.name, type: finalType, bank_id: form.bank_id || null, opened_at: form.type === 'pea' ? (form.opened_at || null) : null }
     const { error } = account?.id
       ? await supabase.from('accounts').update(payload).eq('id', account.id)
       : await supabase.from('accounts').insert({ ...payload, user_id: user.id })
@@ -314,6 +315,11 @@ function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; a
         {form.type === 'autre' && (
           <Field label="Type personnalisé">
             <input value={form.customType ?? ''} onChange={e => setForm(f => ({ ...f, customType: e.target.value }))} placeholder="Ex : SCPI, Crowdfunding…" style={inp} />
+          </Field>
+        )}
+        {form.type === 'pea' && (
+          <Field label="Date d'ouverture (pour l'exonération d'IR après 5 ans)">
+            <input type="date" value={form.opened_at} onChange={e => setForm(f => ({ ...f, opened_at: e.target.value }))} style={inp} />
           </Field>
         )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>

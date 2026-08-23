@@ -21,6 +21,8 @@ export interface Account {
   name: string
   type: AccountType
   created_at: string
+  /** Date d'ouverture réelle du compte — sert à l'exonération PEA après 5 ans (fiscalité). */
+  opened_at?: string
   bank?: Bank
   /** Regroupement non persisté en base (ex: "Créances") — pas de vraie page /accounts/[id]. */
   virtual?: boolean

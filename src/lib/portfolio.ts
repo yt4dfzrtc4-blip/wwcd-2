@@ -302,6 +302,79 @@ export function getPositionDetailPath(pos: Position): string {
   return `/assets/${pos.asset.id}`
 }
 
+/**
+ * Estimation fiscale — impôt latent sur les plus-values non réalisées si le
+ * portefeuille était liquidé aujourd'hui. Approximation volontairement simple,
+ * pas un conseil fiscal :
+ * - PFU (flat tax) : 12,8 % IR + 18,6 % prélèvements sociaux = 31,4 %.
+ * - PEA détenu depuis ≥ 5 ans (`account.opened_at`) : IR exonéré, seuls les
+ *   18,6 % de prélèvements sociaux s'appliquent.
+ * - Livrets réglementés (Livret A/LDDS) : exonérés — approximation, ne
+ *   distingue pas un livret bancaire non réglementé qui serait taxable.
+ * - PER et Or physique : régimes de sortie/plus-value spécifiques, non
+ *   estimés ici plutôt que de risquer un chiffre faux (`excluded: true`).
+ */
+export const PFU_IR_RATE = 0.128
+export const PFU_SOCIAL_RATE = 0.186
+export const PFU_TOTAL_RATE = PFU_IR_RATE + PFU_SOCIAL_RATE
+const PEA_EXEMPTION_YEARS = 5
+
+export function isPeaMature(account: Account, asOf: Date = new Date()): boolean {
+  const openedAt = (account as any).opened_at as string | undefined
+  if (!openedAt) return false
+  const opened = new Date(openedAt)
+  const maturity = new Date(opened)
+  maturity.setFullYear(maturity.getFullYear() + PEA_EXEMPTION_YEARS)
+  return asOf >= maturity
+}
+
+export interface PositionTaxEstimate {
+  rate: number
+  taxableGain: number
+  tax: number
+  excluded: boolean
+}
+
+export function estimatePositionTax(pos: Position): PositionTaxEstimate {
+  const taxableGain = Math.max(0, pos.pnl)
+  const category = pos.asset.category
+
+  if (category === 'per' || category === 'or') {
+    return { rate: 0, taxableGain, tax: 0, excluded: true }
+  }
+  if (category === 'livret') {
+    return { rate: 0, taxableGain, tax: 0, excluded: false }
+  }
+
+  let rate = PFU_TOTAL_RATE
+  if ((category === 'action' || category === 'etf') && pos.account.type === 'pea') {
+    rate = isPeaMature(pos.account) ? PFU_SOCIAL_RATE : PFU_TOTAL_RATE
+  }
+
+  return { rate, taxableGain, tax: taxableGain * rate, excluded: false }
+}
+
+export interface PortfolioTaxSummary {
+  totalTax: number
+  taxableValue: number
+  excludedValue: number
+  byPosition: Array<{ position: Position; estimate: PositionTaxEstimate }>
+}
+
+export function estimatePortfolioTax(positions: Position[]): PortfolioTaxSummary {
+  let totalTax = 0
+  let taxableValue = 0
+  let excludedValue = 0
+  const byPosition = positions.map(position => {
+    const estimate = estimatePositionTax(position)
+    if (estimate.excluded) excludedValue += position.current_value
+    else taxableValue += position.current_value
+    totalTax += estimate.tax
+    return { position, estimate }
+  })
+  return { totalTax, taxableValue, excludedValue, byPosition }
+}
+
 export const CATEGORY_COLORS: Record<string, string> = {
   etf:        '#534AB7',
   action:     '#378ADD',

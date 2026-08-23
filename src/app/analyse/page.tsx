@@ -3,11 +3,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAllPaginated } from '@/lib/supabase/paginate'
-import { buildPositions, buildPortfolioSummary, formatEur, CATEGORY_LABELS, CATEGORY_COLORS } from '@/lib/portfolio'
+import { buildPositions, buildPortfolioSummary, formatEur, CATEGORY_LABELS, CATEGORY_COLORS, estimatePortfolioTax, PFU_IR_RATE, PFU_SOCIAL_RATE, isPeaMature } from '@/lib/portfolio'
 import { usePrivacy } from '@/hooks/usePrivacy'
 import Topbar from '@/components/layout/Topbar'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import { Plus, Trash2, Pencil, X, Check, AlertTriangle, TrendingUp, Landmark, BarChart2, PieChart as PieIcon } from 'lucide-react'
+import { Plus, Trash2, Pencil, X, Check, AlertTriangle, TrendingUp, Landmark, BarChart2, PieChart as PieIcon, Receipt } from 'lucide-react'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -115,7 +115,7 @@ export default function AnalysePage() {
   const { privacy, togglePrivacy } = usePrivacy()
   const [loading, setLoading] = useState(true)
   const [mobile, setMobile] = useState(false)
-  const [tab, setTab] = useState<'allocation' | 'concentration' | 'performance' | 'passif'>('allocation')
+  const [tab, setTab] = useState<'allocation' | 'concentration' | 'performance' | 'passif' | 'fiscalite'>('allocation')
 
   // Données portfolio
   const [positions, setPositions] = useState<any[]>([])
@@ -300,6 +300,18 @@ export default function AnalysePage() {
   const netWorth = totalValue - totalDebt
   const totalMonthly = loans.reduce((s, l) => s + l.monthly_payment, 0)
 
+  // ── Fiscalité (estimation) ───────────────────────────────────────────────────
+
+  const taxSummary = useMemo(() => estimatePortfolioTax(positions), [positions])
+  const netWorthAfterTax = netWorth - taxSummary.totalTax
+
+  const taxByCategory = activeCats.map(c => {
+    const catTax = taxSummary.byPosition.filter(({ position }) => position.asset.category === c)
+    const tax = catTax.reduce((s, { estimate }) => s + estimate.tax, 0)
+    const excluded = catTax.some(({ estimate }) => estimate.excluded)
+    return { cat: c, label: CATEGORY_LABELS[c] ?? c, tax, excluded, color: CATEGORY_COLORS[c] ?? '#B4B2A9' }
+  }).filter(c => c.tax > 0 || c.excluded).sort((a, b) => b.tax - a.tax)
+
   function openNewLoan() {
     setEditingLoan(null)
     setLoanForm(EMPTY_FORM)
@@ -441,6 +453,7 @@ export default function AnalysePage() {
                 <option value="concentration">📈 Concentration</option>
                 <option value="performance">🏆 Performance</option>
                 <option value="passif">{`🏦 Passif${loans.length ? ` (${loans.length})` : ''}`}</option>
+                <option value="fiscalite">🧾 Fiscalité</option>
               </select>
             ) : (
               <div style={{
@@ -452,6 +465,7 @@ export default function AnalysePage() {
                 <Tab label="Concentration" active={tab === 'concentration'} onClick={() => setTab('concentration')} icon={<BarChart2 size={14} />} />
                 <Tab label="Performance" active={tab === 'performance'} onClick={() => setTab('performance')} icon={<TrendingUp size={14} />} />
                 <Tab label={`Passif${loans.length ? ` (${loans.length})` : ''}`} active={tab === 'passif'} onClick={() => setTab('passif')} icon={<Landmark size={14} />} />
+                <Tab label="Fiscalité" active={tab === 'fiscalite'} onClick={() => setTab('fiscalite')} icon={<Receipt size={14} />} />
               </div>
             )}
 
@@ -967,6 +981,97 @@ create policy "loans_own" on loans
                     )}
                   </>
                 )}
+              </div>
+            )}
+
+            {/* ── TAB : FISCALITÉ ───────────────────────────────────────────── */}
+            {tab === 'fiscalite' && (
+              <div style={{ display: 'grid', gap: 14 }}>
+
+                {/* KPIs fiscalité */}
+                <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 10 }}>
+                  <SectionCard style={{ padding: '16px 18px' }}>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Impôt latent estimé</p>
+                    <p style={{ fontSize: 26, fontWeight: 700, color: 'var(--red)', filter: privacy ? 'blur(8px)' : 'none' }}>
+                      {formatEur(taxSummary.totalTax, 0)}
+                    </p>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>si tout était liquidé aujourd&apos;hui</p>
+                  </SectionCard>
+
+                  <SectionCard style={{ padding: '16px 18px' }}>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Patrimoine net d&apos;impôt</p>
+                    <p style={{ fontSize: 26, fontWeight: 700, color: netWorthAfterTax >= 0 ? 'var(--green)' : 'var(--red)', filter: privacy ? 'blur(8px)' : 'none' }}>
+                      {formatEur(netWorthAfterTax, 0)}
+                    </p>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>après dettes et impôt estimé</p>
+                  </SectionCard>
+
+                  <SectionCard style={{ padding: '16px 18px', gridColumn: mobile ? 'span 2' : undefined }}>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Non estimé (PER, Or)</p>
+                    <p style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)', filter: privacy ? 'blur(8px)' : 'none' }}>
+                      {formatEur(taxSummary.excludedValue, 0)}
+                    </p>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>régimes de sortie spécifiques</p>
+                  </SectionCard>
+                </div>
+
+                {/* Répartition de l'impôt par catégorie */}
+                {taxByCategory.length > 0 && (
+                  <SectionCard>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Impôt estimé par catégorie</p>
+                    <div style={{ display: 'grid', gap: 10 }}>
+                      {taxByCategory.map(c => (
+                        <div key={c.cat} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: 12, flex: 1, color: 'var(--text)' }}>{c.label}</span>
+                          {c.excluded && (
+                            <span style={{ fontSize: 10, color: 'var(--muted)' }}>non estimé</span>
+                          )}
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--red)', minWidth: 80, textAlign: 'right', filter: privacy ? 'blur(5px)' : 'none' }}>
+                            {c.tax > 0 ? formatEur(c.tax, 0) : '–'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </SectionCard>
+                )}
+
+                {/* Comptes PEA et maturité */}
+                {positions.some(p => p.account.type === 'pea') && (
+                  <SectionCard>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Comptes PEA</p>
+                    <div style={{ display: 'grid', gap: 10 }}>
+                      {Array.from(new Map(positions.filter(p => p.account.type === 'pea').map(p => [p.account.id, p.account])).values()).map(acc => {
+                        const mature = isPeaMature(acc)
+                        const opened = (acc as any).opened_at
+                        return (
+                          <div key={acc.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 12, flex: 1, color: 'var(--text)' }}>{acc.name}</span>
+                            <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                              {opened ? `ouvert le ${new Date(opened).toLocaleDateString('fr-FR')}` : 'date d’ouverture non renseignée'}
+                            </span>
+                            <span style={{
+                              fontSize: 10, padding: '2px 8px', borderRadius: 5,
+                              background: 'var(--bg)', border: '0.5px solid var(--border)',
+                              color: mature ? 'var(--green)' : 'var(--muted)',
+                            }}>
+                              {mature ? 'IR exonéré (>5 ans)' : 'IR non exonéré'}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </SectionCard>
+                )}
+
+                {/* Disclaimer */}
+                <SectionCard style={{ display: 'flex', gap: 10 }}>
+                  <AlertTriangle size={15} style={{ color: 'var(--muted)', flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6 }}>
+                    Estimation indicative, pas un conseil fiscal. PFU appliqué sur les plus-values latentes : {(PFU_IR_RATE * 100).toFixed(1)} % IR + {(PFU_SOCIAL_RATE * 100).toFixed(1)} % prélèvements sociaux
+                    (PEA détenu depuis plus de 5 ans : IR exonéré, prélèvements sociaux seuls). Livrets supposés exonérés (Livret A/LDDS). PER et Or physique non estimés (régimes de sortie/plus-value spécifiques).
+                  </p>
+                </SectionCard>
               </div>
             )}
           </>
