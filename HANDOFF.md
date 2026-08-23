@@ -57,5 +57,16 @@ Contexte : app de suivi de patrimoine perso. Repo local /Users/williamquaile/Des
 - Redéployé en prod (23/08/2026).
 - **Important pour l'utilisateur** : iOS met en cache l'icône au moment du "Sur l'écran d'accueil" — il faut supprimer l'icône WWCD existante et refaire l'ajout à l'écran d'accueil pour voir la version corrigée (une simple actualisation de la page ne suffit pas).
 
+## Rebrand complet façon logo (23/08/2026, déployé en prod)
+- Choix de l'utilisateur (vs option plus prudente "accent seulement") : appliquer la charte du logo à tout le site, pas juste la couleur d'accent.
+- `--brand` violet `#534AB7` → bleu du logo `#004AAD` (+ `--brand-light`/`--brand-dark` recalculés). `--bg` gris clair `#F7F6F3` → crème du logo `#F1E2BD`. `--surface` (cartes) reste blanc pour préserver la lisibilité des tableaux de données financières.
+- Échelle `tailwind.config.js` `brand.{50..900}` recalculée sur la même base bleue.
+- Badges `etf`/`crypto` (teintes dérivées de l'ancien violet) recolorés en bleu ; les autres badges de catégorie (livret vert, or marron, obligation brique, cat jaune...) **non touchés** car ce sont des couleurs sémantiques indépendantes de la marque.
+- Couleurs codées en dur (recharts a besoin de hex directs, pas de `var()`) mises à jour dans `EvolutionChart.tsx`, `prediction/page.tsx`, `layout.tsx` (theme-color).
+- `manifest.json` : `theme_color`/`background_color` alignés sur la nouvelle palette.
+- Écran `/login` : le texte "WWCD" remplacé par le vrai logo (icône `icons/icon-192.png`, arrondi).
+- Vérifié visuellement en local (dev server + `mcp__Claude_Preview`) sur `/login` uniquement — **pages authentifiées (dashboard, analyse, transactions) non vérifiées visuellement**, pas d'accès aux identifiants. À confirmer par l'utilisateur après déploiement.
+- `.claude/launch.json` ajouté (config serveur dev pour l'outil de preview, `npm run dev`, autoPort activé car le port 3000 était déjà occupé par un autre process sur la machine).
+
 ## Pour vérifier l'état actuel
-Dernier déploiement prod OK (23/08/2026), incluant perf par compte + fiscalité + Monte Carlo + PWA (logo réel, icônes affinées). Migration 005 exécutée côté Supabase, confirmée par l'utilisateur. Reste à confirmer : rendu de l'icône après réinstallation sur l'écran d'accueil, et les 4 tickers en échec de récupération de cours (APO, BSDE.DE, ALGBE.PA, ASML.DE — probablement mal orthographiés sauf APO, à vérifier dans `/assets`).
+Dernier déploiement prod OK (23/08/2026), incluant perf par compte + fiscalité + Monte Carlo + PWA (logo réel, icônes affinées) + rebrand complet (bleu/crème du logo). Migration 005 exécutée côté Supabase, confirmée par l'utilisateur. Reste à confirmer : rendu du dashboard/analyse/transactions avec la nouvelle palette (non vérifié visuellement faute d'identifiants), rendu de l'icône PWA après réinstallation sur l'écran d'accueil, et les 4 tickers en échec de récupération de cours (APO, BSDE.DE, ALGBE.PA, ASML.DE — probablement mal orthographiés sauf APO, à vérifier dans `/assets`).
