@@ -136,7 +136,14 @@ export function buildPositions(
   }
 
   // Passe 3 : créances — valeur = capital initial - remboursements reçus
-  const creanceAccount = { id: 'creances', name: 'Créances', type: 'autre', created_at: '', user_id: '', bank: { id: 'creances-bank', name: 'Créances', user_id: '', created_at: '' } } as any as Account
+  // Compte/banque virtuels (non persistés en base) : `virtual` + `detailPath` permettent
+  // aux pages consommatrices (dashboard) de router vers le détail sans connaître "créances"
+  // spécifiquement — un futur regroupement (ex: immobilier) suivra le même contrat.
+  const creanceAccount = {
+    id: 'creances', name: 'Créances', type: 'autre', created_at: '', user_id: '',
+    virtual: true, detailPath: '/creances',
+    bank: { id: 'creances-bank', name: 'Créances', user_id: '', created_at: '', virtual: true, detailPath: '/creances' },
+  } as any as Account
 
   for (const asset of assets) {
     if (asset.category !== 'creance') continue

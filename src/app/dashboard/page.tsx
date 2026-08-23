@@ -19,8 +19,8 @@ export default function DashboardPage() {
   const router = useRouter()
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
-  const [byBank, setByBank] = useState<{ id: string; name: string; value: number; assetIds: string[] }[]>([])
-  const [byAccount, setByAccount] = useState<{ id: string; name: string; bank: string; bankId: string; value: number; pnl: number; assetIds: string[] }[]>([])
+  const [byBank, setByBank] = useState<{ id: string; name: string; value: number; assetIds: string[]; virtual: boolean; detailPath?: string }[]>([])
+  const [byAccount, setByAccount] = useState<{ id: string; name: string; bank: string; bankId: string; value: number; pnl: number; assetIds: string[]; virtual: boolean; detailPath?: string; bankVirtual: boolean; bankDetailPath?: string }[]>([])
   const { privacy, togglePrivacy } = usePrivacy()
   const [refreshing, setRefreshing] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -60,12 +60,17 @@ export default function DashboardPage() {
       setSummary(s)
 
       // Répartition par compte
-      const accountMap: Record<string, { id: string; name: string; bank: string; bankId: string; value: number; pnl: number; assetIds: string[] }> = {}
+      const accountMap: Record<string, { id: string; name: string; bank: string; bankId: string; value: number; pnl: number; assetIds: string[]; virtual: boolean; detailPath?: string; bankVirtual: boolean; bankDetailPath?: string }> = {}
       for (const pos of positions) {
         const acc = pos.account as any
         const key = acc.id
         if (!accountMap[key]) {
-          accountMap[key] = { id: acc.id, name: acc.name, bank: acc.bank?.name ?? '–', bankId: acc.bank?.id ?? '', value: 0, pnl: 0, assetIds: [] }
+          accountMap[key] = {
+            id: acc.id, name: acc.name, bank: acc.bank?.name ?? '–', bankId: acc.bank?.id ?? '',
+            value: 0, pnl: 0, assetIds: [],
+            virtual: !!acc.virtual, detailPath: acc.detailPath,
+            bankVirtual: !!acc.bank?.virtual, bankDetailPath: acc.bank?.detailPath,
+          }
         }
         accountMap[key].value += pos.current_value
         accountMap[key].pnl += pos.pnl
@@ -75,10 +80,10 @@ export default function DashboardPage() {
       setByAccount(accountList)
 
       // Répartition par banque
-      const bankMap: Record<string, { id: string; name: string; value: number; assetIds: string[] }> = {}
+      const bankMap: Record<string, { id: string; name: string; value: number; assetIds: string[]; virtual: boolean; detailPath?: string }> = {}
       for (const acc of accountList) {
         const key = acc.bankId || acc.bank
-        if (!bankMap[key]) bankMap[key] = { id: acc.bankId, name: acc.bank, value: 0, assetIds: [] }
+        if (!bankMap[key]) bankMap[key] = { id: acc.bankId, name: acc.bank, value: 0, assetIds: [], virtual: acc.bankVirtual, detailPath: acc.bankDetailPath }
         bankMap[key].value += acc.value
         bankMap[key].assetIds.push(...acc.assetIds)
       }
@@ -199,7 +204,7 @@ export default function DashboardPage() {
               <p style={sectionLabel}>Par banque</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
                 {byBank.map(b => {
-                  const link = groupLink(b.id, b.assetIds, 'bank')
+                  const link = groupLink(b.id, b.assetIds, 'bank', b.virtual, b.detailPath)
                   return (
                   <div key={b.name}
                     onClick={() => link && router.push(link)}
@@ -229,7 +234,7 @@ export default function DashboardPage() {
                   const pnlPct = invested > 0 ? (a.pnl / invested) * 100 : 0
                   const pnlColor = a.pnl >= 0 ? 'var(--green)' : 'var(--red)'
                   const sign = a.pnl >= 0 ? '+' : ''
-                  const link = groupLink(a.id, a.assetIds, 'account')
+                  const link = groupLink(a.id, a.assetIds, 'account', a.virtual, a.detailPath)
                   return (
                     <div key={a.id}
                       onClick={() => link && router.push(link)}
@@ -315,11 +320,13 @@ export default function DashboardPage() {
 
 const sectionLabel: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }
 
-// Les créances sont regroupées sous un compte/banque virtuels (id 'creances' / 'creances-bank')
-// qui n'existent pas en base — on route directement vers la créance quand il n'y en a qu'une.
-function groupLink(id: string, assetIds: string[], kind: 'account' | 'bank'): string | null {
-  if (id === 'creances' || id === 'creances-bank') {
-    return assetIds.length === 1 ? `/creances/${assetIds[0]}` : null
+// Certains regroupements (ex: "Créances") sont virtuels — construits en mémoire par
+// buildPositions(), sans ligne réelle dans `accounts`/`banks`. Ils portent `virtual` +
+// `detailPath` (voir lib/portfolio.ts) pour router directement vers le détail de l'actif
+// quand il n'y en a qu'un, sans que le dashboard n'ait à connaître leur nature spécifique.
+function groupLink(id: string, assetIds: string[], kind: 'account' | 'bank', virtual?: boolean, detailPath?: string): string | null {
+  if (virtual) {
+    return assetIds.length === 1 && detailPath ? `${detailPath}/${assetIds[0]}` : null
   }
   if (!id) return null
   return kind === 'account' ? `/accounts/${id}` : `/banks/${id}`

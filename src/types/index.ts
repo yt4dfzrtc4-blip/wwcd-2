@@ -8,6 +8,10 @@ export interface Bank {
   user_id: string
   name: string
   created_at: string
+  /** Regroupement non persisté en base (ex: "Créances") — pas de vraie page /banks/[id]. */
+  virtual?: boolean
+  /** Préfixe de route vers le détail d'un actif de ce regroupement (ex: '/creances'). */
+  detailPath?: string
 }
 
 export interface Account {
@@ -18,6 +22,10 @@ export interface Account {
   type: AccountType
   created_at: string
   bank?: Bank
+  /** Regroupement non persisté en base (ex: "Créances") — pas de vraie page /accounts/[id]. */
+  virtual?: boolean
+  /** Préfixe de route vers le détail d'un actif de ce regroupement (ex: '/creances'). */
+  detailPath?: string
 }
 
 export interface Asset {
