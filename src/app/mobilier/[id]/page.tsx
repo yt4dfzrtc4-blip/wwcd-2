@@ -20,6 +20,8 @@ export default function MobilierPage() {
   const [newPurchase, setNewPurchase] = useState('')
   const [editCurrent, setEditCurrent] = useState(false)
   const [newCurrent, setNewCurrent] = useState('')
+  const [editDate, setEditDate] = useState(false)
+  const [newDate, setNewDate] = useState('')
 
   useEffect(() => {
     const check = () => setMobile(window.innerWidth < 640)
@@ -35,6 +37,7 @@ export default function MobilierPage() {
       setAsset(ast)
       setNewPurchase(ast.mobilier_purchase_price?.toString() ?? '0')
       setNewCurrent(ast.mobilier_current_value?.toString() ?? '0')
+      setNewDate(ast.mobilier_purchase_date ?? '')
     }
   }
 
@@ -48,6 +51,12 @@ export default function MobilierPage() {
     const { error } = await supabase.from('assets').update({ mobilier_current_value: parseFloat(newCurrent) || 0 }).eq('id', id)
     if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
     setEditCurrent(false); loadData()
+  }
+
+  async function saveDate() {
+    const { error } = await supabase.from('assets').update({ mobilier_purchase_date: newDate || null }).eq('id', id)
+    if (error) { alert(`Échec de l'enregistrement : ${error.message}`); return }
+    setEditDate(false); loadData()
   }
 
   if (!asset) return (
@@ -75,7 +84,11 @@ export default function MobilierPage() {
           </button>
           <div style={{ flex: 1 }}>
             <h1 style={{ fontSize: 18, fontWeight: 500 }}>{asset.name}</h1>
-            <p style={{ fontSize: 12, color: 'var(--muted)' }}>Ajouté le {format(parseISO(asset.created_at), 'd MMMM yyyy', { locale: fr })}</p>
+            <p style={{ fontSize: 12, color: 'var(--muted)' }}>
+              {asset.mobilier_purchase_date
+                ? `Acheté le ${format(parseISO(asset.mobilier_purchase_date), 'd MMMM yyyy', { locale: fr })}`
+                : `Ajouté le ${format(parseISO(asset.created_at), 'd MMMM yyyy', { locale: fr })}`}
+            </p>
           </div>
           <span style={{ fontSize: 10, fontWeight: 500, padding: '3px 8px', borderRadius: 4, background: '#F1E7DC', color: '#6B4423' }}>Mobilier</span>
         </div>
@@ -125,6 +138,25 @@ export default function MobilierPage() {
                 {pvLatente >= 0 ? '+' : ''}{fmt(pvLatente, 0)}
               </p>
               <p style={{ fontSize: 11, color: pvLatente >= 0 ? 'var(--green)' : 'var(--red)', marginTop: 2 }}>{pvPct >= 0 ? '+' : ''}{pvPct.toFixed(1)} %</p>
+            </div>
+
+            <div>
+              <p style={lbl}>Date d&apos;achat</p>
+              {editDate ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                  <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
+                    style={{ padding: '4px 8px', borderRadius: 6, border: '0.5px solid var(--border)', fontSize: 13, background: 'var(--bg)', color: 'var(--text)' }} autoFocus />
+                  <button onClick={saveDate} style={{ fontSize: 12, color: 'var(--brand)', background: 'none', border: 'none', cursor: 'pointer' }}>OK</button>
+                  <button onClick={() => setEditDate(false)} style={{ fontSize: 12, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                  <p style={{ fontSize: mobile ? 16 : 20, fontWeight: 500 }}>
+                    {asset.mobilier_purchase_date ? format(parseISO(asset.mobilier_purchase_date), 'd MMM yyyy', { locale: fr }) : '–'}
+                  </p>
+                  <button onClick={() => setEditDate(true)} style={{ fontSize: 11, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}>modifier</button>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -365,6 +365,7 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
     creance_start_date: (asset as any)?.creance_start_date ?? '',
     mobilier_purchase_price: (asset as any)?.mobilier_purchase_price?.toString() ?? '',
     mobilier_current_value: (asset as any)?.mobilier_current_value?.toString() ?? '',
+    mobilier_purchase_date: (asset as any)?.mobilier_purchase_date ?? '',
   })
   const [loading, setLoading] = useState(false)
   const [dividendFetching, setDividendFetching] = useState(false)
@@ -427,6 +428,7 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
       creance_start_date: showCreanceOptions && form.creance_start_date ? form.creance_start_date : null,
       mobilier_purchase_price: showMobilierOptions && form.mobilier_purchase_price ? parseFloat(form.mobilier_purchase_price) : null,
       mobilier_current_value: showMobilierOptions && form.mobilier_current_value ? parseFloat(form.mobilier_current_value) : null,
+      mobilier_purchase_date: showMobilierOptions && form.mobilier_purchase_date ? form.mobilier_purchase_date : null,
     }
     if (asset?.id) {
       const { error } = await supabase.from('assets').update(payload).eq('id', asset.id)
@@ -514,12 +516,15 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
             <Field label="Date de début"><input type="date" value={form.creance_start_date} onChange={e => setForm(f => ({ ...f, creance_start_date: e.target.value }))} style={inp} /></Field>
           </div>
         </>)}
-        {showMobilierOptions && (
+        {showMobilierOptions && (<>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <Field label="Prix d&apos;achat (€)"><input type="number" step="0.01" value={form.mobilier_purchase_price} onChange={e => setForm(f => ({ ...f, mobilier_purchase_price: e.target.value }))} placeholder="8000" style={inp} /></Field>
             <Field label="Valeur actuelle estimée (€)"><input type="number" step="0.01" value={form.mobilier_current_value} onChange={e => setForm(f => ({ ...f, mobilier_current_value: e.target.value }))} placeholder="9500" style={inp} /></Field>
           </div>
-        )}
+          <Field label="Date d&apos;achat">
+            <input type="date" value={form.mobilier_purchase_date} onChange={e => setForm(f => ({ ...f, mobilier_purchase_date: e.target.value }))} style={inp} />
+          </Field>
+        </>)}
         {showDividendOptions && (<>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <Field label={dividendFetching ? 'Rendement dividende (récupération…)' : 'Rendement dividende (% / an)'}>

@@ -46,6 +46,7 @@ export interface Asset {
   dividend_month?: number
   mobilier_purchase_price?: number
   mobilier_current_value?: number
+  mobilier_purchase_date?: string
   created_at: string
   prices?: Price
 }
