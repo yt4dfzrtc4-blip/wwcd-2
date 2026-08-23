@@ -32,6 +32,14 @@ Contexte : app de suivi de patrimoine perso. Repo local /Users/williamquaile/Des
 - 500 simulations, tirage aléatoire du rendement annuel par catégorie (loi normale, Box-Muller). Moyenne = taux "Base" existant, écart-type dérivé de l'écart pessimiste/optimiste déjà réglé par l'utilisateur (pas de nouveau champ).
 - Graphe en fourchette (bande 10e-90e centile + médiane) + badge "Probabilité d'atteindre l'objectif" avec année médiane d'atteinte.
 
+**4. PWA (app mobile installable)** — pas encore déployé, build local validé
+- `public/manifest.json` (nom, icônes, `start_url: /dashboard`, `display: standalone`, couleurs brand).
+- Icônes générées depuis le vrai logo fourni par l'utilisateur : `public/logo-source.png` → `scripts/build-icons-from-logo.sh` (utilise `sips`, natif macOS, pas de dépendance externe). Produit `public/icons/icon-{192,512}[-maskable].png` (versions maskable = logo réduit à 70% + padding couleur de fond du logo `#f1e2bd`, échantillonnée automatiquement, pour survivre au masque circulaire Android) + `public/apple-touch-icon.png`. Relancer ce script si le logo change.
+- `public/sw.js` : service worker minimal, cache uniquement les assets statiques (`/_next/static/*`, `/icons/*`) — aucune page ni appel API n'est mis en cache pour ne jamais afficher des données patrimoniales périmées. Enregistré via `src/components/ServiceWorkerRegister.tsx` (client component, monté dans `layout.tsx`).
+- `src/app/layout.tsx` : ajout `metadata.manifest`, `metadata.icons`, `metadata.appleWebApp`, `viewport.themeColor`.
+- `vercel.json` : header `Cache-Control: no-cache` sur `/sw.js` pour que les mises à jour du service worker se propagent immédiatement après déploiement.
+- Build de prod (`npm run build`) validé sans erreur. **Pas encore déployé/testé en conditions réelles** (installation sur téléphone) — à faire à la prochaine étape.
+
 ## Discussion en cours (non résolue) — invitation d'un second utilisateur
 - Besoin : créer un second compte de connexion **séparé** (pas de partage de patrimoine, RLS déjà cloisonnée par `user_id` donc rien à coder côté app).
 - Blocage rencontré : Supabase → Authentication → Users → "Send invitation" échoue avec `email rate limit exceeded` (limite basse du service mail intégré par défaut).
@@ -42,13 +50,5 @@ Contexte : app de suivi de patrimoine perso. Repo local /Users/williamquaile/Des
 - Benchmark vs indices (MSCI World/CAC40) : expliqué, l'utilisateur a dit "pas besoin" pour l'instant.
 - Assurance-vie comme catégorie d'actif : identifié comme le plus gros trou fonctionnel restant (placement le plus courant en France, absent de `CATEGORY_LABELS`), mais pas encore demandé explicitement par l'utilisateur — à proposer si pertinent.
 
-**4. PWA (app mobile installable)**
-- `public/manifest.json` (nom, icônes, `start_url: /dashboard`, `display: standalone`, couleurs brand).
-- Icônes générées par script maison (`scripts/generate-icons.js`, sans dépendance externe : PNG encodé à la main via `zlib`) — logo "W" simple sur fond violet brand, à remplacer par un vrai logo si besoin. Génère `public/icons/icon-{192,512}[-maskable].png` + `public/apple-touch-icon.png`.
-- `public/sw.js` : service worker minimal, cache uniquement les assets statiques (`/_next/static/*`, `/icons/*`) — aucune page ni appel API n'est mis en cache pour ne jamais afficher des données patrimoniales périmées. Enregistré via `src/components/ServiceWorkerRegister.tsx` (client component, monté dans `layout.tsx`).
-- `src/app/layout.tsx` : ajout `metadata.manifest`, `metadata.icons`, `metadata.appleWebApp`, `viewport.themeColor`.
-- `vercel.json` : header `Cache-Control: no-cache` sur `/sw.js` pour que les mises à jour du service worker se propagent immédiatement après déploiement.
-- Build de prod (`npm run build`) validé sans erreur. **Pas encore déployé/testé en conditions réelles** (installation sur téléphone) — à faire à la prochaine étape.
-
 ## Pour vérifier l'état actuel
-Dernier déploiement prod OK (23/08/2026), incluant perf par compte + fiscalité + Monte Carlo. Migration 005 exécutée côté Supabase, confirmée par l'utilisateur. PWA implémentée en local (build validé), déploiement et test d'installation mobile à confirmer.
+Dernier déploiement prod OK (23/08/2026), incluant perf par compte + fiscalité + Monte Carlo. Migration 005 exécutée côté Supabase, confirmée par l'utilisateur. PWA implémentée en local avec le vrai logo (build validé), déploiement et test d'installation mobile à confirmer.
