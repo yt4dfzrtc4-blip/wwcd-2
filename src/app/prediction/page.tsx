@@ -10,7 +10,7 @@ import {
   ComposedChart, Area, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, ReferenceLine, ReferenceDot,
 } from 'recharts'
-import { Settings2, ChevronDown, ChevronUp, Target, TrendingUp, Zap, Coffee } from 'lucide-react'
+import { Settings2, ChevronDown, ChevronUp, Target, TrendingUp, Zap, Coffee, Dices } from 'lucide-react'
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 
@@ -131,6 +131,115 @@ function findGoalYear(points: YearPoint[], scenario: keyof YearPoint, goal: numb
   return null
 }
 
+// ─── Moteur Monte Carlo ─────────────────────────────────────────────────────────
+// Au lieu de 3 trajectoires figées (pessimiste/base/optimiste), on tire un
+// rendement annuel aléatoire par catégorie à chaque année de chaque simulation,
+// puis on regarde la distribution des résultats (percentiles) plutôt qu'un
+// chiffre unique trompeur.
+
+// Box-Muller : tire un nombre ~ N(mean, stddev).
+function randomNormal(mean: number, stddev: number): number {
+  let u1 = 0, u2 = 0
+  while (u1 === 0) u1 = Math.random()
+  while (u2 === 0) u2 = Math.random()
+  const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)
+  return mean + z * stddev
+}
+
+// Écart-type dérivé des taux pessimiste/optimiste déjà réglés par l'utilisateur
+// (traités comme les bornes ~10e/90e centile, z ≈ 1,2816) — évite d'ajouter un
+// réglage de volatilité séparé en plus des 3 taux existants.
+const CONFIDENCE_Z = 1.2816
+function deriveStdDev(r: CategoryRate): number {
+  const upside = (r.optimistic - r.base) / CONFIDENCE_Z
+  const downside = (r.base - r.pessimistic) / CONFIDENCE_Z
+  return Math.max(0.1, (upside + downside) / 2)
+}
+
+interface MonteCarloPoint {
+  year: number
+  calYear: number
+  p10: number
+  p50: number
+  p90: number
+  contributed: number
+}
+
+interface MonteCarloResult {
+  points: MonteCarloPoint[]
+  probabilityReachGoal: number | null  // 0–1, null si pas d'objectif
+  medianGoalYear: number | null        // année calendaire médiane d'atteinte
+}
+
+function runMonteCarlo(
+  valueByCategory: Record<string, number>,
+  totalRevenues: number,
+  rates: Record<string, CategoryRate>,
+  monthlyContrib: number,
+  horizonYears: number,
+  goalEur: number,
+  simulations = 500,
+): MonteCarloResult {
+  const cats = Object.keys(valueByCategory)
+  const totalValue = cats.reduce((s, c) => s + (valueByCategory[c] ?? 0), 0)
+  const annualContrib = monthlyContrib * 12
+  const contribByCategory: Record<string, number> = {}
+  for (const c of cats) {
+    const share = totalValue > 0 ? (valueByCategory[c] ?? 0) / totalValue : 1 / cats.length
+    contribByCategory[c] = annualContrib * share
+  }
+
+  const currentYear = new Date().getFullYear()
+  const totalsByYear: number[][] = Array.from({ length: horizonYears + 1 }, () => [])
+  const goalYears: number[] = []
+
+  for (let sim = 0; sim < simulations; sim++) {
+    const v = { ...valueByCategory }
+    totalsByYear[0].push(totalValue)
+    let reachedYear: number | null = goalEur > 0 && totalValue >= goalEur ? 0 : null
+
+    for (let y = 1; y <= horizonYears; y++) {
+      for (const c of cats) {
+        const r = rates[c] ?? DEFAULT_RATES['autre']
+        const stddev = deriveStdDev(r)
+        const contrib = contribByCategory[c] ?? 0
+        const revShare = totalValue > 0 ? (valueByCategory[c] ?? 0) / totalValue : 0
+        const rev = totalRevenues * revShare
+        const annualReturn = Math.max(-0.95, randomNormal(r.base, stddev) / 100)
+        v[c] = (v[c] + contrib + rev) * (1 + annualReturn)
+      }
+      const sum = cats.reduce((s, c) => s + v[c], 0)
+      totalsByYear[y].push(sum)
+      if (reachedYear === null && goalEur > 0 && sum >= goalEur) reachedYear = y
+    }
+    if (reachedYear !== null) goalYears.push(reachedYear)
+  }
+
+  const percentile = (arr: number[], p: number) => {
+    const sorted = [...arr].sort((a, b) => a - b)
+    const idx = Math.min(sorted.length - 1, Math.max(0, Math.round(p * (sorted.length - 1))))
+    return sorted[idx]
+  }
+
+  const points: MonteCarloPoint[] = []
+  for (let y = 0; y <= horizonYears; y++) {
+    points.push({
+      year: y,
+      calYear: currentYear + y,
+      p10: percentile(totalsByYear[y], 0.1),
+      p50: percentile(totalsByYear[y], 0.5),
+      p90: percentile(totalsByYear[y], 0.9),
+      contributed: totalValue + annualContrib * y,
+    })
+  }
+
+  return {
+    points,
+    probabilityReachGoal: goalEur > 0 ? goalYears.length / simulations : null,
+    medianGoalYear: goalYears.length > 0 ? currentYear + percentile(goalYears, 0.5) : null,
+  }
+}
+
 // Trouver l'année cible d'un scénario pour les revenus passifs
 function yearsToPassiveIncome(points: YearPoint[], monthlyTarget: number): { base: number | null; pessimistic: number | null; optimistic: number | null } {
   const annualTarget = monthlyTarget * 12
@@ -190,6 +299,7 @@ export default function PredictionPage() {
   // UI
   const [showRates, setShowRates] = useState(false)
   const [showContrib, setShowContrib] = useState(true)
+  const [view, setView] = useState<'scenarios' | 'montecarlo'>('scenarios')
 
   useEffect(() => {
     const check = () => setMobile(window.innerWidth < 640)
@@ -269,6 +379,18 @@ export default function PredictionPage() {
   const goalYearOpti = findGoalYear(projection, 'optimistic', goalEur)
   const goalYearExtra = findGoalYear(projectionExtra, 'base', goalEur)
 
+  // Monte Carlo — distribution de résultats plutôt que 3 trajectoires figées
+  const monteCarlo = useMemo(() =>
+    runMonteCarlo(valueByCategory, totalRevenues, rates, monthlyContrib, horizonYears, goalEur),
+    [valueByCategory, totalRevenues, rates, monthlyContrib, horizonYears, goalEur]
+  )
+  const chartDataMC = monteCarlo.points.map(p => ({
+    name: p.calYear,
+    range: [Math.round(p.p10), Math.round(p.p90)],
+    median: Math.round(p.p50),
+    contributed: Math.round(p.contributed),
+  }))
+
   const currentYear = new Date().getFullYear()
   const totalValue = Object.values(valueByCategory).reduce((a, b) => a + b, 0)
   const finalBase = projection[projection.length - 1]?.base ?? 0
@@ -339,6 +461,40 @@ export default function PredictionPage() {
                 <span style={{ color: 'var(--muted)' }}>Gains</span>
                 <span style={{ color: 'var(--green)' }}>{privacy ? '•••••' : formatEur(gains, 0)}</span>
               </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const CustomTooltipMC = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null
+    const range = payload.find((p: any) => p.dataKey === 'range')?.value as [number, number] | undefined
+    const median = payload.find((p: any) => p.dataKey === 'median')?.value ?? 0
+    const contrib = payload.find((p: any) => p.dataKey === 'contributed')?.value ?? 0
+    return (
+      <div style={{
+        background: 'var(--surface)', border: '0.5px solid var(--border)',
+        borderRadius: 10, padding: '12px 14px', fontSize: 12, minWidth: 190,
+        boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+      }}>
+        <p style={{ color: 'var(--muted)', marginBottom: 8, fontWeight: 600 }}>{label}</p>
+        <div style={{ display: 'grid', gap: 4 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+            <span style={{ color: 'var(--brand)' }}>Médiane</span>
+            <span style={{ fontWeight: 600 }}>{privacy ? '•••••' : formatEur(median, 0)}</span>
+          </div>
+          {range && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ color: 'var(--muted)' }}>Fourchette 10–90 %</span>
+              <span>{privacy ? '•••••' : `${formatEur(range[0], 0)} – ${formatEur(range[1], 0)}`}</span>
+            </div>
+          )}
+          {contrib > 0 && (
+            <div style={{ borderTop: '0.5px solid var(--border)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ color: 'var(--muted)' }}>Apports</span>
+              <span>{privacy ? '•••••' : formatEur(contrib, 0)}</span>
             </div>
           )}
         </div>
@@ -474,93 +630,169 @@ export default function PredictionPage() {
               </span>
             </div>
 
+            {/* ── Toggle vue ─────────────────────────────────────────────────── */}
+            <div style={{ display: 'flex', gap: 2, background: 'var(--surface)', borderRadius: 8, padding: 3, marginBottom: 16, width: 'fit-content', border: '0.5px solid var(--border)' }}>
+              {([['scenarios', '📈 Scénarios'], ['montecarlo', '🎲 Monte Carlo']] as const).map(([v, label]) => (
+                <button key={v} onClick={() => setView(v)} style={{
+                  padding: '6px 14px', borderRadius: 6, border: 'none',
+                  background: view === v ? 'var(--brand)' : 'transparent',
+                  color: view === v ? '#fff' : 'var(--muted)',
+                  fontSize: 12, fontWeight: view === v ? 600 : 400,
+                  cursor: 'pointer', fontFamily: 'var(--font-sans)', transition: 'all 0.15s',
+                }}>{label}</button>
+              ))}
+            </div>
+
             {/* ── Graphe ─────────────────────────────────────────────────────── */}
             <div style={{
               background: 'var(--surface)', borderRadius: 14, padding: mobile ? '16px 12px' : '20px 24px',
               border: '0.5px solid var(--border)', marginBottom: 16,
             }}>
-              <div style={{ height: mobile ? 260 : 340, filter: privacy ? 'blur(8px)' : 'none', transition: 'filter 0.2s' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="gradContrib" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#534AB7" stopOpacity={0.25} />
-                        <stop offset="100%" stopColor="#534AB7" stopOpacity={0.08} />
-                      </linearGradient>
-                      <linearGradient id="gradGains" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#1D9E75" stopOpacity={0.35} />
-                        <stop offset="100%" stopColor="#1D9E75" stopOpacity={0.05} />
-                      </linearGradient>
-                    </defs>
+              {view === 'scenarios' ? (
+                <>
+                  <div style={{ height: mobile ? 260 : 340, filter: privacy ? 'blur(8px)' : 'none', transition: 'filter 0.2s' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="gradContrib" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#534AB7" stopOpacity={0.25} />
+                            <stop offset="100%" stopColor="#534AB7" stopOpacity={0.08} />
+                          </linearGradient>
+                          <linearGradient id="gradGains" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#1D9E75" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="#1D9E75" stopOpacity={0.05} />
+                          </linearGradient>
+                        </defs>
 
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--muted)' }} axisLine={false} tickLine={false}
-                      interval={Math.floor(horizonYears / 5)} />
-                    <YAxis hide domain={['auto', 'auto']} />
-                    <Tooltip content={<CustomTooltip />} />
+                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--muted)' }} axisLine={false} tickLine={false}
+                          interval={Math.floor(horizonYears / 5)} />
+                        <YAxis hide domain={['auto', 'auto']} />
+                        <Tooltip content={<CustomTooltip />} />
 
-                    {/* Aire apports */}
-                    <Area type="monotone" dataKey="contributed" name="Apports"
-                      stroke="none" fill="url(#gradContrib)" stackId="1" dot={false} activeDot={false} />
-                    {/* Aire gains */}
-                    <Area type="monotone" dataKey="gainsBase" name="Gains"
-                      stroke="none" fill="url(#gradGains)" stackId="1" dot={false} activeDot={false} />
+                        {/* Aire apports */}
+                        <Area type="monotone" dataKey="contributed" name="Apports"
+                          stroke="none" fill="url(#gradContrib)" stackId="1" dot={false} activeDot={false} />
+                        {/* Aire gains */}
+                        <Area type="monotone" dataKey="gainsBase" name="Gains"
+                          stroke="none" fill="url(#gradGains)" stackId="1" dot={false} activeDot={false} />
 
-                    {/* Ligne objectif */}
-                    {goalEur > 0 && goalEur < (finalOpti * 1.2) && (
-                      <ReferenceLine y={goalEur} stroke="var(--brand)" strokeDasharray="6 3"
-                        strokeWidth={1.5} strokeOpacity={0.6}
-                        label={{ value: goalMode === 'income' ? `Objectif revenu` : `Objectif`, position: 'insideTopRight', fontSize: 10, fill: 'var(--brand)', fontWeight: 600 }}
-                      />
-                    )}
+                        {/* Ligne objectif */}
+                        {goalEur > 0 && goalEur < (finalOpti * 1.2) && (
+                          <ReferenceLine y={goalEur} stroke="var(--brand)" strokeDasharray="6 3"
+                            strokeWidth={1.5} strokeOpacity={0.6}
+                            label={{ value: goalMode === 'income' ? `Objectif revenu` : `Objectif`, position: 'insideTopRight', fontSize: 10, fill: 'var(--brand)', fontWeight: 600 }}
+                          />
+                        )}
 
-                    {/* Milestones */}
-                    {milestonePoints.map(m => (
-                      <ReferenceDot key={m.milestone} x={m.year} y={m.value}
-                        r={4} fill="var(--brand)" stroke="var(--surface)" strokeWidth={2}
-                        label={{ value: MILESTONE_LABELS[m.milestone], position: 'top', fontSize: 9, fill: 'var(--brand)', fontWeight: 700 }}
-                      />
-                    ))}
+                        {/* Milestones */}
+                        {milestonePoints.map(m => (
+                          <ReferenceDot key={m.milestone} x={m.year} y={m.value}
+                            r={4} fill="var(--brand)" stroke="var(--surface)" strokeWidth={2}
+                            label={{ value: MILESTONE_LABELS[m.milestone], position: 'top', fontSize: 9, fill: 'var(--brand)', fontWeight: 700 }}
+                          />
+                        ))}
 
-                    {/* 3 courbes */}
-                    <Line type="monotone" dataKey="pessimistic" name="Pessimiste"
-                      stroke={SCENARIO_COLORS.pessimistic} strokeWidth={1.5} dot={false}
-                      strokeDasharray="5 3" activeDot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="base" name="Base"
-                      stroke={SCENARIO_COLORS.base} strokeWidth={2.5} dot={false}
-                      activeDot={{ r: 4, fill: SCENARIO_COLORS.base, strokeWidth: 0 }} />
-                    <Line type="monotone" dataKey="optimistic" name="Optimiste"
-                      stroke={SCENARIO_COLORS.optimistic} strokeWidth={1.5} dot={false}
-                      strokeDasharray="5 3" activeDot={{ r: 3 }} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Légende */}
-              <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {[
-                  { color: SCENARIO_COLORS.pessimistic, label: 'Pessimiste', dash: true },
-                  { color: SCENARIO_COLORS.base, label: 'Base', dash: false },
-                  { color: SCENARIO_COLORS.optimistic, label: 'Optimiste', dash: true },
-                  { color: '#1D9E75', label: 'Gains', area: true },
-                  { color: '#534AB7', label: 'Apports', area: true },
-                ].map(({ color, label, dash, area }) => (
-                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    {area ? (
-                      <span style={{ width: 12, height: 10, borderRadius: 2, background: color, opacity: 0.5, display: 'inline-block' }} />
-                    ) : (
-                      <svg width={20} height={10}>
-                        <line x1={0} y1={5} x2={20} y2={5} stroke={color} strokeWidth={dash ? 1.5 : 2.5}
-                          strokeDasharray={dash ? '4 2' : undefined} />
-                      </svg>
-                    )}
-                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>{label}</span>
+                        {/* 3 courbes */}
+                        <Line type="monotone" dataKey="pessimistic" name="Pessimiste"
+                          stroke={SCENARIO_COLORS.pessimistic} strokeWidth={1.5} dot={false}
+                          strokeDasharray="5 3" activeDot={{ r: 3 }} />
+                        <Line type="monotone" dataKey="base" name="Base"
+                          stroke={SCENARIO_COLORS.base} strokeWidth={2.5} dot={false}
+                          activeDot={{ r: 4, fill: SCENARIO_COLORS.base, strokeWidth: 0 }} />
+                        <Line type="monotone" dataKey="optimistic" name="Optimiste"
+                          stroke={SCENARIO_COLORS.optimistic} strokeWidth={1.5} dot={false}
+                          strokeDasharray="5 3" activeDot={{ r: 3 }} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
                   </div>
-                ))}
-              </div>
+
+                  {/* Légende */}
+                  <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                    {[
+                      { color: SCENARIO_COLORS.pessimistic, label: 'Pessimiste', dash: true },
+                      { color: SCENARIO_COLORS.base, label: 'Base', dash: false },
+                      { color: SCENARIO_COLORS.optimistic, label: 'Optimiste', dash: true },
+                      { color: '#1D9E75', label: 'Gains', area: true },
+                      { color: '#534AB7', label: 'Apports', area: true },
+                    ].map(({ color, label, dash, area }) => (
+                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        {area ? (
+                          <span style={{ width: 12, height: 10, borderRadius: 2, background: color, opacity: 0.5, display: 'inline-block' }} />
+                        ) : (
+                          <svg width={20} height={10}>
+                            <line x1={0} y1={5} x2={20} y2={5} stroke={color} strokeWidth={dash ? 1.5 : 2.5}
+                              strokeDasharray={dash ? '4 2' : undefined} />
+                          </svg>
+                        )}
+                        <span style={{ fontSize: 10, color: 'var(--muted)' }}>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ height: mobile ? 260 : 340, filter: privacy ? 'blur(8px)' : 'none', transition: 'filter 0.2s' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={chartDataMC} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--muted)' }} axisLine={false} tickLine={false}
+                          interval={Math.floor(horizonYears / 5)} />
+                        <YAxis hide domain={['auto', 'auto']} />
+                        <Tooltip content={<CustomTooltipMC />} />
+
+                        {/* Bande 10e–90e centile */}
+                        <Area type="monotone" dataKey="range" name="Fourchette 10–90 %"
+                          stroke="none" fill="var(--brand)" fillOpacity={0.15} activeDot={false} />
+
+                        {/* Ligne objectif */}
+                        {goalEur > 0 && goalEur < (monteCarlo.points[monteCarlo.points.length - 1]?.p90 ?? 0) * 1.2 && (
+                          <ReferenceLine y={goalEur} stroke="var(--brand)" strokeDasharray="6 3"
+                            strokeWidth={1.5} strokeOpacity={0.6}
+                            label={{ value: goalMode === 'income' ? `Objectif revenu` : `Objectif`, position: 'insideTopRight', fontSize: 10, fill: 'var(--brand)', fontWeight: 600 }}
+                          />
+                        )}
+
+                        {/* Médiane */}
+                        <Line type="monotone" dataKey="median" name="Médiane"
+                          stroke="var(--brand)" strokeWidth={2.5} dot={false}
+                          activeDot={{ r: 4, fill: 'var(--brand)', strokeWidth: 0 }} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Légende */}
+                  <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <svg width={20} height={10}><line x1={0} y1={5} x2={20} y2={5} stroke="var(--brand)" strokeWidth={2.5} /></svg>
+                      <span style={{ fontSize: 10, color: 'var(--muted)' }}>Médiane (500 simulations)</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 12, height: 10, borderRadius: 2, background: 'var(--brand)', opacity: 0.3, display: 'inline-block' }} />
+                      <span style={{ fontSize: 10, color: 'var(--muted)' }}>Fourchette 10–90 %</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* ── Badges impact ──────────────────────────────────────────────── */}
             <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
+
+              {view === 'montecarlo' && (
+                <ImpactBadge
+                  icon={<Dices size={15} />}
+                  label={`Probabilité d'atteindre l'objectif d'ici ${currentYear + horizonYears}`}
+                  value={
+                    monteCarlo.probabilityReachGoal === null
+                      ? 'Aucun objectif défini'
+                      : `${Math.round(monteCarlo.probabilityReachGoal * 100)} %${monteCarlo.medianGoalYear ? ` (médiane : ${monteCarlo.medianGoalYear})` : ''}`
+                  }
+                  color={
+                    monteCarlo.probabilityReachGoal !== null && monteCarlo.probabilityReachGoal >= 0.7 ? 'var(--green)'
+                    : monteCarlo.probabilityReachGoal !== null && monteCarlo.probabilityReachGoal >= 0.4 ? 'var(--brand)'
+                    : 'var(--red)'
+                  }
+                />
+              )}
 
               <ImpactBadge
                 icon={<Coffee size={16} />}
