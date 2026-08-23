@@ -1,5 +1,5 @@
 export type AccountType = 'pea' | 'cto' | 'crypto' | 'livret' | 'cat' | 'per' | 'or' | 'obligations' | 'autre'
-export type AssetCategory = 'action' | 'etf' | 'crypto' | 'obligation' | 'livret' | 'cat' | 'per' | 'or' | 'creance' | 'autre'
+export type AssetCategory = 'action' | 'etf' | 'crypto' | 'obligation' | 'livret' | 'cat' | 'per' | 'or' | 'creance' | 'mobilier' | 'autre'
 export type TransactionType = 'achat' | 'vente' | 'dividende' | 'interets' | 'coupon' | 'remboursement'
 export type LivretMode = 'auto' | 'balance' | 'transactions'
 
@@ -44,6 +44,8 @@ export interface Asset {
   dividend_yield?: number
   dividend_frequency?: string
   dividend_month?: number
+  mobilier_purchase_price?: number
+  mobilier_current_value?: number
   created_at: string
   prices?: Price
 }

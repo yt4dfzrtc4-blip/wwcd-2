@@ -174,6 +174,35 @@ export function buildPositions(
     })
   }
 
+  // Passe 4 : mobilier (montres, art…) — pas de cours ni de transactions,
+  // juste un prix d'achat et une valeur actuelle estimée mise à jour à la main.
+  const mobilierAccount = {
+    id: 'mobilier', name: 'Mobilier', type: 'autre', created_at: '', user_id: '',
+    virtual: true, detailPath: '/mobilier',
+    bank: { id: 'mobilier-bank', name: 'Mobilier', user_id: '', created_at: '', virtual: true, detailPath: '/mobilier' },
+  } as any as Account
+
+  for (const asset of assets) {
+    if (asset.category !== 'mobilier') continue
+    const purchasePrice = (asset as any).mobilier_purchase_price ?? 0
+    const currentValue = (asset as any).mobilier_current_value ?? purchasePrice
+    if (!purchasePrice && !currentValue) continue
+
+    positions.push({
+      asset,
+      account: mobilierAccount,
+      quantity: 1,
+      average_price: purchasePrice,
+      current_price: currentValue,
+      current_value: currentValue,
+      invested_value: purchasePrice,
+      pnl: currentValue - purchasePrice,
+      pnl_pct: purchasePrice > 0 ? ((currentValue - purchasePrice) / purchasePrice) * 100 : 0,
+      day_change: 0,
+      day_change_pct: 0,
+    })
+  }
+
   // Tri par valorisation décroissante
   return positions.sort((a, b) => b.current_value - a.current_value)
 }
@@ -274,6 +303,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   per: 'PER',
   or: 'Or',
   creance: 'Créances',
+  mobilier: 'Mobilier',
   autre: 'Autre',
 }
 
@@ -297,6 +327,7 @@ export function getCategoryBadgeClass(category: string): string {
  */
 export function getPositionDetailPath(pos: Position): string {
   if (pos.asset.category === 'creance') return `/creances/${pos.asset.id}`
+  if (pos.asset.category === 'mobilier') return `/mobilier/${pos.asset.id}`
   if (pos.account.type === 'livret') return `/livrets/${pos.account.id}`
   if (pos.account.type === 'cat') return `/cat/${pos.account.id}`
   return `/assets/${pos.asset.id}`
@@ -311,7 +342,8 @@ export function getPositionDetailPath(pos: Position): string {
  *   18,6 % de prélèvements sociaux s'appliquent.
  * - Livrets réglementés (Livret A/LDDS) : exonérés — approximation, ne
  *   distingue pas un livret bancaire non réglementé qui serait taxable.
- * - PER et Or physique : régimes de sortie/plus-value spécifiques, non
+ * - PER, Or physique et Mobilier (montres, art…) : régimes de sortie/plus-value
+ *   spécifiques (taxe forfaitaire, abattement pour durée de détention…), non
  *   estimés ici plutôt que de risquer un chiffre faux (`excluded: true`).
  */
 export const PFU_IR_RATE = 0.128
@@ -339,7 +371,7 @@ export function estimatePositionTax(pos: Position): PositionTaxEstimate {
   const taxableGain = Math.max(0, pos.pnl)
   const category = pos.asset.category
 
-  if (category === 'per' || category === 'or') {
+  if (category === 'per' || category === 'or' || category === 'mobilier') {
     return { rate: 0, taxableGain, tax: 0, excluded: true }
   }
   if (category === 'livret') {
@@ -385,5 +417,6 @@ export const CATEGORY_COLORS: Record<string, string> = {
   cat:        '#BA7517',
   per:        '#5DCAA5',
   creance:    '#0EA5A0',
+  mobilier:   '#9C6644',
   autre:      '#B4B2A9',
 }

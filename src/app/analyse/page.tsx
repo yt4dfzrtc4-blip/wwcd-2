@@ -1007,7 +1007,7 @@ create policy "loans_own" on loans
                   </SectionCard>
 
                   <SectionCard style={{ padding: '16px 18px', gridColumn: mobile ? 'span 2' : undefined }}>
-                    <p style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Non estimé (PER, Or)</p>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Non estimé (PER, Or, Mobilier)</p>
                     <p style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)', filter: privacy ? 'blur(8px)' : 'none' }}>
                       {formatEur(taxSummary.excludedValue, 0)}
                     </p>

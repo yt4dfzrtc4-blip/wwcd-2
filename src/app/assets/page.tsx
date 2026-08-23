@@ -176,7 +176,9 @@ export default function AssetsPage() {
                 <span className={`badge ${getCategoryBadgeClass(a.category)}`} style={{ fontSize: mobile ? 9 : 10 }}>{getCategoryLabel(a.category)}</span>
                 {!mobile && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted)' }}>{a.isin ?? a.ticker ?? '–'}</span>}
                 {!mobile && <span style={{ textAlign: 'right', color: 'var(--muted)', filter: privacy ? 'blur(5px)' : 'none' }}>
-                  {a.livret_mode === 'balance'
+                  {a.category === 'mobilier'
+                    ? `${((a as any).mobilier_current_value ?? 0).toLocaleString('fr-FR')} €`
+                    : a.livret_mode === 'balance'
                     ? `${(a.livret_balance ?? 0).toLocaleString('fr-FR')} €`
                     : (a as any).prices?.price ? `${(a as any).prices.price.toFixed(2)} €` : '–'
                   }
@@ -187,6 +189,9 @@ export default function AssetsPage() {
                   )}
                   {a.category === 'creance' && (
                     <a href={`/creances/${a.id}`} style={{ fontSize: 12, color: '#0EA5A0', textDecoration: 'none', padding: '4px 10px', border: '0.5px solid #0EA5A0', borderRadius: 6, whiteSpace: 'nowrap' }}>Gérer</a>
+                  )}
+                  {a.category === 'mobilier' && (
+                    <a href={`/mobilier/${a.id}`} style={{ fontSize: 12, color: '#9C6644', textDecoration: 'none', padding: '4px 10px', border: '0.5px solid #9C6644', borderRadius: 6, whiteSpace: 'nowrap' }}>Gérer</a>
                   )}
                   <button onClick={() => { setEditAsset(a); setShowAssetModal(true) }} style={iconBtn}><Pencil size={13} /></button>
                   <button onClick={() => deleteAsset(a.id)} style={{ ...iconBtn, color: 'var(--red)' }}><Trash2 size={13} /></button>
@@ -334,7 +339,7 @@ function AccountModal({ banks, account, onClose, onSuccess }: { banks: Bank[]; a
 function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClose: () => void; onSuccess: () => void }) {
   const supabase = createClient()
   const router = useRouter()
-  const predefinedCategories = ['action','etf','crypto','obligation','livret','cat','per','or','creance','autre']
+  const predefinedCategories = ['action','etf','crypto','obligation','livret','cat','per','or','creance','mobilier','autre']
   const assetCategoryIsCustom = asset?.category && !predefinedCategories.includes(asset.category)
   const [form, setForm] = useState({
     name: asset?.name ?? '',
@@ -358,6 +363,8 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
     creance_monthly: (asset as any)?.creance_monthly?.toString() ?? '',
     creance_months: (asset as any)?.creance_months?.toString() ?? '',
     creance_start_date: (asset as any)?.creance_start_date ?? '',
+    mobilier_purchase_price: (asset as any)?.mobilier_purchase_price?.toString() ?? '',
+    mobilier_current_value: (asset as any)?.mobilier_current_value?.toString() ?? '',
   })
   const [loading, setLoading] = useState(false)
   const [dividendFetching, setDividendFetching] = useState(false)
@@ -365,6 +372,7 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
   const showObligationOptions = form.category === 'obligation'
   const showDividendOptions = ['action', 'etf'].includes(form.category)
   const showCreanceOptions = form.category === 'creance'
+  const showMobilierOptions = form.category === 'mobilier'
 
   useEffect(() => {
     if (!showDividendOptions || !form.ticker) return
@@ -417,6 +425,8 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
       creance_monthly: showCreanceOptions && form.creance_monthly ? parseFloat(form.creance_monthly) : null,
       creance_months: showCreanceOptions && form.creance_months ? parseInt(form.creance_months) : null,
       creance_start_date: showCreanceOptions && form.creance_start_date ? form.creance_start_date : null,
+      mobilier_purchase_price: showMobilierOptions && form.mobilier_purchase_price ? parseFloat(form.mobilier_purchase_price) : null,
+      mobilier_current_value: showMobilierOptions && form.mobilier_current_value ? parseFloat(form.mobilier_current_value) : null,
     }
     if (asset?.id) {
       const { error } = await supabase.from('assets').update(payload).eq('id', asset.id)
@@ -430,6 +440,7 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
       onSuccess(); onClose()
       if (finalCategory === 'obligation' && newAsset?.id) router.push(`/obligations/${newAsset.id}`)
       if (finalCategory === 'creance' && newAsset?.id) router.push(`/creances/${newAsset.id}`)
+      if (finalCategory === 'mobilier' && newAsset?.id) router.push(`/mobilier/${newAsset.id}`)
     }
   }
 
@@ -469,7 +480,7 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
             </Field>
           </div>
         )}
-        {!showLivretOptions && !showObligationOptions && (
+        {!showLivretOptions && !showObligationOptions && !showMobilierOptions && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <Field label="ISIN (optionnel)"><input value={form.isin} onChange={e => setForm(f => ({ ...f, isin: e.target.value }))} placeholder="FR0011869353" style={inp} /></Field>
             <Field label="Ticker (optionnel)"><input value={form.ticker} onChange={e => setForm(f => ({ ...f, ticker: e.target.value }))} placeholder="CW8.PA" style={inp} /></Field>
@@ -503,6 +514,12 @@ function AssetModal({ asset, onClose, onSuccess }: { asset: Asset | null; onClos
             <Field label="Date de début"><input type="date" value={form.creance_start_date} onChange={e => setForm(f => ({ ...f, creance_start_date: e.target.value }))} style={inp} /></Field>
           </div>
         </>)}
+        {showMobilierOptions && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <Field label="Prix d&apos;achat (€)"><input type="number" step="0.01" value={form.mobilier_purchase_price} onChange={e => setForm(f => ({ ...f, mobilier_purchase_price: e.target.value }))} placeholder="8000" style={inp} /></Field>
+            <Field label="Valeur actuelle estimée (€)"><input type="number" step="0.01" value={form.mobilier_current_value} onChange={e => setForm(f => ({ ...f, mobilier_current_value: e.target.value }))} placeholder="9500" style={inp} /></Field>
+          </div>
+        )}
         {showDividendOptions && (<>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <Field label={dividendFetching ? 'Rendement dividende (récupération…)' : 'Rendement dividende (% / an)'}>

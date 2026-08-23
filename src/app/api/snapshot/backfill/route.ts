@@ -119,6 +119,10 @@ export async function POST() {
         const startDate = (a as any).creance_start_date || (a.created_at ? a.created_at.split('T')[0] : null)
         if (startDate && startDate > date) clone.creance_initial = 0
       }
+      if (a.category === 'mobilier') {
+        const createdDate = a.created_at ? a.created_at.split('T')[0] : null
+        if (createdDate && createdDate > date) { clone.mobilier_purchase_price = 0; clone.mobilier_current_value = 0 }
+      }
 
       return clone
     })
