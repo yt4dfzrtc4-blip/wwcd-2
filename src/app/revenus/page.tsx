@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAllPaginated } from '@/lib/supabase/paginate'
-import { calculatePosition } from '@/lib/portfolio'
+import { calculatePosition, estimateLivretInterest } from '@/lib/portfolio'
 import { usePrivacy } from '@/hooks/usePrivacy'
 import Topbar from '@/components/layout/Topbar'
 import { differenceInDays, format, subDays, addMonths } from 'date-fns'
@@ -99,7 +99,9 @@ export default function RevenusPage() {
       }
       if (!solde) continue
 
-      const annual = solde * (taux / 100)
+      // Au prorata réel des dépôts/retraits (pas solde actuel × taux depuis le 1er
+      // janvier) — voir estimateLivretInterest() dans lib/portfolio.ts.
+      const { interestYear: annual } = estimateLivretInterest(txs, taux, solde, today)
       const monthly = Array(12).fill(0)
       monthly[11] = annual
 
@@ -108,7 +110,7 @@ export default function RevenusPage() {
         type: 'livret',
         annualAmount: annual,
         monthlyBreakdown: monthly,
-        detail: `${solde.toLocaleString('fr-FR')} € × ${taux} %`,
+        detail: `${solde.toLocaleString('fr-FR')} € × ${taux} % (au prorata des dépôts/retraits)`,
         isEstimate: true,
       })
     }
@@ -128,32 +130,38 @@ export default function RevenusPage() {
       }
       if (!taux) continue
 
-      // Solde : livret_balance (mode balance) ou via transactions sur l'actif ou sur le compte
+      // Solde : livret_balance (mode balance) ou via transactions sur l'actif ou sur le compte.
+      // `movements` suit la même source que `solde`, pour que le prorata des
+      // intérêts porte sur les dates réelles des dépôts/retraits trouvés.
       let solde = (asset as any).livret_balance ?? 0
+      let movements: any[] = []
       if (!solde) {
         const txsByAsset = (transactions ?? []).filter((t: any) => t.asset_id === asset.id)
-        solde = txsByAsset.reduce((sum: number, tx: any) => {
+        const soldeFromAsset = txsByAsset.reduce((sum: number, tx: any) => {
           const montant = tx.quantity * tx.price
           if (tx.type === 'achat' || tx.type === 'interets') return sum + montant
           if (tx.type === 'vente') return sum - montant
           return sum
         }, 0)
+        if (soldeFromAsset) { solde = soldeFromAsset; movements = txsByAsset }
       }
       if (!solde) {
         const matchingAcc = (accounts ?? []).find((a: any) => a.type === 'livret' && a.name === asset.name)
         if (matchingAcc) {
           const txsByAcc = (transactions ?? []).filter((t: any) => t.account_id === (matchingAcc as any).id)
-          solde = txsByAcc.reduce((sum: number, tx: any) => {
+          const soldeFromAcc = txsByAcc.reduce((sum: number, tx: any) => {
             const montant = tx.quantity * tx.price
             if (tx.type === 'achat' || tx.type === 'interets') return sum + montant
             if (tx.type === 'vente') return sum - montant
             return sum
-          }, 0) || (matchingAcc as any).balance || 0
+          }, 0)
+          if (soldeFromAcc) { solde = soldeFromAcc; movements = txsByAcc }
+          else solde = (matchingAcc as any).balance || 0
         }
       }
       if (!solde) continue
 
-      const annual = solde * (taux / 100)
+      const { interestYear: annual } = estimateLivretInterest(movements, taux, solde, today)
       const monthly = Array(12).fill(0)
       monthly[11] = annual
       result.push({
@@ -161,7 +169,7 @@ export default function RevenusPage() {
         type: 'livret',
         annualAmount: annual,
         monthlyBreakdown: monthly,
-        detail: `${solde.toLocaleString('fr-FR')} € × ${taux} %`,
+        detail: `${solde.toLocaleString('fr-FR')} € × ${taux} % (au prorata des dépôts/retraits)`,
         isEstimate: true,
       })
     }

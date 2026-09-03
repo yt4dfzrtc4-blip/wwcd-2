@@ -420,3 +420,67 @@ export const CATEGORY_COLORS: Record<string, string> = {
   mobilier:   '#9C6644',
   autre:      '#B4B2A9',
 }
+
+export interface LivretInterestEstimate {
+  /** Intérêts courus depuis le 1er janvier jusqu'à `asOf`, au prorata réel des dépôts/retraits. */
+  interestToDate: number
+  /** Projection du `asOf` au 31 décembre, en supposant le solde actuel constant. */
+  interestRemaining: number
+  /** Estimation totale sur l'année (interestToDate + interestRemaining). */
+  interestYear: number
+  /** Solde actuel (reconstitué depuis les mouvements, ou solde de repli fourni). */
+  balance: number
+}
+
+/**
+ * Estimation des intérêts d'un livret au prorata réel des dépôts/retraits — pas
+ * un simple `solde actuel × taux` appliqué depuis le 1er janvier (ce qui
+ * surestime fortement l'intérêt d'un dépôt récent). On reconstitue le solde
+ * jour par jour à partir des mouvements (achat=dépôt, vente=retrait,
+ * interets=capitalisation) et on applique `solde × taux/100 × jours/365` sur
+ * chaque palier entre deux mouvements.
+ *
+ * `currentBalanceFallback` sert uniquement quand `movements` est vide (solde
+ * saisi manuellement, sans historique) — dans ce cas on ne connaît pas la date
+ * réelle des dépôts, donc on retombe sur l'approximation "présent depuis le
+ * 1er janvier".
+ */
+export function estimateLivretInterest(
+  movements: { type: string; quantity: number; price: number; date: string }[],
+  taux: number,
+  currentBalanceFallback: number,
+  asOf: Date = new Date()
+): LivretInterestEstimate {
+  const yearStart = new Date(asOf.getFullYear(), 0, 1)
+  const diffDays = (a: Date, b: Date) => Math.round((a.getTime() - b.getTime()) / 86400000)
+  const joursEcoules = diffDays(asOf, yearStart)
+  const joursRestants = 365 - joursEcoules
+
+  const sorted = movements
+    .filter(m => m.type === 'achat' || m.type === 'vente' || m.type === 'interets')
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+  if (sorted.length === 0) {
+    const interestToDate = currentBalanceFallback * (taux / 100) * (joursEcoules / 365)
+    const interestRemaining = currentBalanceFallback * (taux / 100) * (joursRestants / 365)
+    return { interestToDate, interestRemaining, interestYear: interestToDate + interestRemaining, balance: currentBalanceFallback }
+  }
+
+  let balance = sorted
+    .filter(m => new Date(m.date) < yearStart)
+    .reduce((s, m) => s + (m.type === 'vente' ? -m.quantity * m.price : m.quantity * m.price), 0)
+
+  let cursor = yearStart
+  let interestToDate = 0
+  for (const m of sorted.filter(m => new Date(m.date) >= yearStart && new Date(m.date) <= asOf)) {
+    const mDate = new Date(m.date)
+    interestToDate += balance * (taux / 100) * (diffDays(mDate, cursor) / 365)
+    balance += m.type === 'vente' ? -m.quantity * m.price : m.quantity * m.price
+    cursor = mDate
+  }
+  interestToDate += balance * (taux / 100) * (diffDays(asOf, cursor) / 365)
+
+  const interestRemaining = balance * (taux / 100) * (joursRestants / 365)
+
+  return { interestToDate, interestRemaining, interestYear: interestToDate + interestRemaining, balance }
+}

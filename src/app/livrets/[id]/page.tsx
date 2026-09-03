@@ -8,6 +8,7 @@ import Topbar from '@/components/layout/Topbar'
 import { ArrowLeft, Trash2, X } from 'lucide-react'
 import { format, parseISO, startOfYear, differenceInDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { estimateLivretInterest } from '@/lib/portfolio'
 
 interface Transaction {
   id: string
@@ -85,40 +86,8 @@ export default function LivretPage() {
   const joursRestants = 365 - joursEcoules
   const taux = account?.livret_rate ?? 0
 
-  // Intérêts courus au prorata : on reconstitue le solde jour par jour depuis le
-  // 1er janvier (chaque dépôt/retrait/versement d'intérêts déplace le solde à sa
-  // date réelle) plutôt que d'appliquer le taux sur le solde actuel comme s'il
-  // était présent depuis le 1er janvier — sinon un dépôt du 3 septembre est compté
-  // comme s'il rapportait des intérêts depuis janvier.
-  const mouvements = [...transactions]
-    .filter(t => t.type === 'achat' || t.type === 'vente' || t.type === 'interets')
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-
-  let interetsCourus: number
-  if (mouvements.length === 0) {
-    // Pas d'historique (solde saisi manuellement) : pas de date de dépôt connue,
-    // on garde l'approximation "présent depuis le 1er janvier".
-    interetsCourus = solde * (taux / 100) * (joursEcoules / 365)
-  } else {
-    let balance = mouvements
-      .filter(t => new Date(t.date) < yearStart)
-      .reduce((s, t) => s + (t.type === 'vente' ? -t.quantity * t.price : t.quantity * t.price), 0)
-    let cursor = yearStart
-    let acc = 0
-    for (const tx of mouvements.filter(t => new Date(t.date) >= yearStart && new Date(t.date) <= today)) {
-      const txDate = new Date(tx.date)
-      acc += balance * (taux / 100) * (differenceInDays(txDate, cursor) / 365)
-      balance += tx.type === 'vente' ? -tx.quantity * tx.price : tx.quantity * tx.price
-      cursor = txDate
-    }
-    acc += balance * (taux / 100) * (differenceInDays(today, cursor) / 365)
-    interetsCourus = acc
-  }
-
-  // Projection : solde actuel supposé constant jusqu'au 31 décembre (les dépôts/
-  // retraits futurs sont par nature inconnus).
-  const interetsRestants = solde * (taux / 100) * (joursRestants / 365)
-  const interetsAnnee = interetsCourus + interetsRestants
+  const { interestToDate: interetsCourus, interestRemaining: interetsRestants, interestYear: interetsAnnee } =
+    estimateLivretInterest(transactions, taux, solde, today)
 
   async function deleteTx(txId: string) {
     if (!confirm('Supprimer ce mouvement ?')) return
