@@ -28,6 +28,16 @@ input, select, textarea {
   font-size: max(16px, 1em);
 }
 
+/* Garde-fou mobile : un seul élément plus large que l'écran (texte long non
+   coupé, graphique recharts mal mesuré au premier rendu, etc.) forçait tout
+   le document — y compris le header — à s'afficher en retrait avec une bande
+   vide à droite. On bloque le débordement horizontal au niveau racine plutôt
+   que de compter sur chaque composant pour ne jamais déborder. */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   font-family: var(--font-sans);
   background: var(--bg);
