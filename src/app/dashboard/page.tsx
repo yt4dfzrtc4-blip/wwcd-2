@@ -250,7 +250,7 @@ export default function DashboardPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' }}>
                         <span style={{ fontSize: 13, fontWeight: 500, filter: privacy ? 'blur(6px)' : 'none' }}>{formatEur(a.value, 0)}</span>
                         <span style={{ fontSize: 11, color: pnlColor, filter: privacy ? 'blur(5px)' : 'none', minWidth: mobile ? 0 : 110, textAlign: 'right' }}>
-                          {mobile ? `/ ${sign}${pnlPct.toFixed(1)} %` : `${sign}${formatEur(a.pnl, 0)} / ${sign}${pnlPct.toFixed(1)} %`}
+                          {sign}{formatEur(a.pnl, 0)} / {sign}{pnlPct.toFixed(1)} %
                         </span>
                       </div>
                     </div>
