@@ -238,19 +238,19 @@ export default function DashboardPage() {
                   return (
                     <div key={a.id}
                       onClick={() => link && router.push(link)}
-                      style={{ display: 'flex', flexDirection: mobile ? 'column' : 'row', alignItems: mobile ? 'stretch' : 'center', gap: mobile ? 2 : 8, cursor: link ? 'pointer' : 'default', padding: '5px 0', borderRadius: 6 }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: link ? 'pointer' : 'default', padding: '5px 0', borderRadius: 6 }}
                       onMouseEnter={e => link && (e.currentTarget.style.background = 'var(--bg)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: mobile ? 1 : 0 }}>{a.name}</span>
-                        <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>{a.bank}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: mobile ? '1 1 auto' : undefined, overflow: 'hidden' }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{a.name}</span>
+                        {!mobile && <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>{a.bank}</span>}
                         {!mobile && <span style={{ flex: 1 }} />}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: mobile ? 'space-between' : 'flex-end', gap: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 500, filter: privacy ? 'blur(6px)' : 'none', whiteSpace: 'nowrap' }}>{formatEur(a.value, 0)}</span>
-                        <span style={{ fontSize: 11, color: pnlColor, filter: privacy ? 'blur(5px)' : 'none', whiteSpace: 'nowrap', minWidth: mobile ? 0 : 110, textAlign: 'right' }}>
-                          {sign}{formatEur(a.pnl, 0)} / {sign}{pnlPct.toFixed(1)} %
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, filter: privacy ? 'blur(6px)' : 'none' }}>{formatEur(a.value, 0)}</span>
+                        <span style={{ fontSize: 11, color: pnlColor, filter: privacy ? 'blur(5px)' : 'none', minWidth: mobile ? 0 : 110, textAlign: 'right' }}>
+                          {mobile ? `/ ${sign}${pnlPct.toFixed(1)} %` : `${sign}${formatEur(a.pnl, 0)} / ${sign}${pnlPct.toFixed(1)} %`}
                         </span>
                       </div>
                     </div>
